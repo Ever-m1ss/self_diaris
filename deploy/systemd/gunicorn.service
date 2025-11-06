@@ -1,0 +1,21 @@
+# /etc/systemd/system/gunicorn.service
+# 仅在不使用 Docker、直接虚拟环境方式部署时使用
+[Unit]
+Description=Gunicorn daemon for self_diaris
+After=network.target
+
+[Service]
+User=www-data
+Group=www-data
+WorkingDirectory=/opt/self_diaris
+Environment="SECRET_KEY=change-me" "DEBUG=false"
+# 若使用本地 Postgres 改成对应地址；或直接留 DATABASE_URL
+Environment="DATABASE_URL=postgresql://diary:diary@localhost:5432/diary"
+Environment="CLOUDINARY_URL="
+ExecStart=/opt/self_diaris/venv/bin/gunicorn ll_project.wsgi:application --bind 127.0.0.1:8000 --workers 3 --timeout 120
+Restart=always
+RestartSec=5
+TimeoutStopSec=30
+
+[Install]
+WantedBy=multi-user.target

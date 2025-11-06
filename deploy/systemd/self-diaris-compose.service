@@ -1,0 +1,18 @@
+# /etc/systemd/system/self-diaris-compose.service
+# 使用 Docker Compose 管理应用（推荐）
+[Unit]
+Description=Self Diaris (Django) via Docker Compose
+Requires=docker.service
+After=docker.service network.target
+
+[Service]
+Type=oneshot
+WorkingDirectory=/opt/self_diaris
+RemainAfterExit=true
+Environment="COMPOSE_FILE=/opt/self_diaris/docker-compose.aliyun.yml"
+ExecStart=/usr/bin/docker compose up -d --build
+ExecStop=/usr/bin/docker compose down
+TimeoutStartSec=0
+
+[Install]
+WantedBy=multi-user.target

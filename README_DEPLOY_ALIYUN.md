@@ -77,3 +77,48 @@ sudo docker exec -i $(sudo docker ps -qf name=_db) psql -U "$POSTGRES_USER" -d "
 - Nginx 反代到 `127.0.0.1:8000`，静态由 Whitenoise 提供或直接交给 Nginx。
 
 如果你需要，我可以继续为传统方式生成 Nginx 配置与 systemd unit 文件模板。
+已生成示例配置：
+
+```
+deploy/nginx/diary.conf              # HTTP 反代
+deploy/nginx/diary-ssl.conf          # HTTPS 模板（需证书）
+deploy/systemd/gunicorn.service      # 非 Docker 模式示例 unit
+deploy/systemd/self-diaris-compose.service  # Docker Compose 管理 unit
+```
+
+### 使用 systemd 管理 Docker Compose
+
+```bash
+sudo cp deploy/systemd/self-diaris-compose.service /etc/systemd/system/
+sudo systemctl daemon-reload
+sudo systemctl enable --now self-diaris-compose.service
+```
+
+更新代码后重启：
+
+```bash
+cd /opt/self_diaris
+git pull origin main
+sudo systemctl restart self-diaris-compose.service
+```
+
+### 使用 Nginx 配置
+
+```bash
+sudo cp deploy/nginx/diary.conf /etc/nginx/conf.d/diary.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+HTTPS：替换 `YOUR_DOMAIN` 后：
+
+```bash
+sudo cp deploy/nginx/diary-ssl.conf /etc/nginx/conf.d/diary-ssl.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+证书可用 Certbot 自动获取：
+
+```bash
+sudo yum install -y certbot python3-certbot-nginx  # 或 apt install certbot python3-certbot-nginx
+sudo certbot --nginx -d yourdomain.com --agree-tos -m you@example.com --redirect --non-interactive
+```

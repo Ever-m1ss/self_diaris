@@ -24,8 +24,9 @@ services:
     depends_on:
       db:
         condition: service_healthy
+    # 将容器端口仅绑定到本机回环，避免绕过 Nginx 的直接外网访问
     ports:
-      - "8000:8000"
+      - "127.0.0.1:8000:8000"
     restart: unless-stopped
 
 volumes:
