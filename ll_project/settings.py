@@ -28,10 +28,18 @@ DEBUG = os.getenv('DEBUG', 'True').lower() in ('1', 'true', 'yes')
 # 动态允许主机：从 RENDER_EXTERNAL_HOSTNAME 注入；同时允许本地测试
 _render_host = os.getenv('RENDER_EXTERNAL_HOSTNAME')
 ALLOWED_HOSTS = ['localhost', '127.0.0.1'] + ([_render_host] if _render_host else [])
+# 额外主机（逗号分隔），用于绑定自定义域名时无需改代码
+_extra_hosts = os.getenv('ALLOWED_HOSTS_EXTRA', '')
+if _extra_hosts:
+    ALLOWED_HOSTS += [h.strip() for h in _extra_hosts.split(',') if h.strip()]
 
 # CSRF 可信任域名：生产时根据外部主机填充
+CSRF_TRUSTED_ORIGINS = []
 if _render_host:
-    CSRF_TRUSTED_ORIGINS = [f'https://{_render_host}']
+    CSRF_TRUSTED_ORIGINS.append(f'https://{_render_host}')
+_extra_csrf = os.getenv('CSRF_TRUSTED_ORIGINS_EXTRA', '')
+if _extra_csrf:
+    CSRF_TRUSTED_ORIGINS += [o.strip() for o in _extra_csrf.split(',') if o.strip()]
 
 # Application definition
 
@@ -42,6 +50,7 @@ INSTALLED_APPS = [
 
     # Third party apps.
     'django_bootstrap5',
+    # Cloudinary（有 CLOUDINARY_URL 时生效，见下方条件配置）
 
     # Default django apps.
     'django.contrib.admin',
@@ -200,3 +209,15 @@ if not DEBUG:
             'level': 'INFO',
         },
     }
+
+# -----------------------------
+# Cloudinary 媒体存储（可选）
+# -----------------------------
+# 若设置了 CLOUDINARY_URL（形如 cloudinary://api_key:api_secret@cloud_name），
+# 则自动启用 Cloudinary 作为默认文件存储，以持久保存用户上传的附件。
+CLOUDINARY_URL = os.getenv('CLOUDINARY_URL')
+if CLOUDINARY_URL:
+    # 仅在存在配置时才注册依赖 app，避免本地未安装时报错
+    INSTALLED_APPS += ['cloudinary', 'cloudinary_storage']
+    DEFAULT_FILE_STORAGE = 'cloudinary_storage.storage.MediaCloudinaryStorage'
+    # 可选：自定义媒体 URL 前缀（一般由 Cloudinary 返回的 URL 决定，这里保持默认即可）

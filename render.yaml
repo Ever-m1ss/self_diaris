@@ -7,20 +7,30 @@ services:
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
     startCommand: gunicorn ll_project.wsgi --workers=2 --bind=0.0.0.0:$PORT --timeout 120
+    postDeployCommand: python manage.py migrate
     envVars:
       - key: SECRET_KEY
         generateValue: true
       - key: DEBUG
         value: "False"
       - key: DATABASE_URL
-        sync: false  # 在 Render 上手动或通过依赖注入设置
+        fromDatabase:
+          name: diary-db
+          property: connectionString
+      # Cloudinary：在 Render 控制台的 Environment → Secret Files/Env Vars 中添加如下变量
+      # 形如：cloudinary://<api_key>:<api_secret>@<cloud_name>
+      - key: CLOUDINARY_URL
+        sync: false
+      # 可选：自定义域名时，添加以下两个以免改代码（逗号分隔）
+      # - key: ALLOWED_HOSTS_EXTRA
+      #   value: "your.com,www.your.com"
+      # - key: CSRF_TRUSTED_ORIGINS_EXTRA
+      #   value: "https://your.com,https://www.your.com"
     autoDeploy: true
     healthCheckPath: /
-    
-# 可选：创建托管 Postgres，并把 DATABASE_URL 注入上面的服务
-# databases:
-#   - name: diary-db
-#     plan: free
-#     ipAllowList: []
-#     postgresMajorVersion: 15
-#     # 在 Render 控制台将该数据库作为依赖添加到上面的 Web 服务以自动注入 DATABASE_URL
+
+databases:
+  - name: diary-db
+    plan: free
+    postgresMajorVersion: 15
+    ipAllowList: []

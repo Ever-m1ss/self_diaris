@@ -29,6 +29,12 @@
 - （数据库）在 Render 创建一个免费的 PostgreSQL，然后将其 `External Database URL` 复制为：
   - `DATABASE_URL`（若前缀为 `postgres://` 本项目会自动兼容为 `postgresql://`）
 
+（可选但强烈推荐）Cloudinary 媒体存储：
+- 注册 Cloudinary 免费账号，获取 `cloud_name`、`api_key`、`api_secret`
+- 在 Render → Environment 添加：
+  - `CLOUDINARY_URL=cloudinary://<api_key>:<api_secret>@<cloud_name>`
+  - 设置后，项目会自动启用 Cloudinary 作为默认文件存储，避免 Render 重建时附件丢失。
+
 4) 首次部署完成后，打开 Render Shell 执行：
 
 ```
