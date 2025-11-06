@@ -1,0 +1,207 @@
+{% extends 'learning_logs/base.html' %}
+
+{% block page_header %}
+  <div class="topic-header-glass d-flex justify-content-between align-items-center">
+    <h1 class="mb-0 topic-title">{{ topic.text }}
+      {% if topic.is_public %}
+        <span class="badge text-bg-success align-middle" style="font-size: .45em;">公开</span>
+      {% else %}
+        <span class="badge text-bg-secondary align-middle" style="font-size: .45em;">私密</span>
+      {% endif %}
+    </h1>
+    <div class="d-flex gap-2 flex-shrink-0 topic-actions">
+      {% if topic.is_public or topic.owner == user %}
+        <a href="{% url 'learning_logs:new_entry' topic.id %}" class="btn btn-primary">写一篇日记</a>
+      {% endif %}
+      {% if topic.owner == user %}
+        <a href="{% url 'learning_logs:delete_topic' topic.text %}" class="btn btn-outline-danger">删除日记本</a>
+      {% endif %}
+    </div>
+  </div>
+{% endblock page_header %}
+
+{% block content %}
+
+  {# 日记本附件 #}
+  {% with tatts=topic.attachment_set.all %}
+    {% if tatts %}
+      <div class="card mb-3">
+        <div class="card-body">
+          <h6 class="mb-2">日记本附件</h6>
+          <div class="row g-3">
+            {% for a in tatts %}
+              {% if a.is_public or a.owner == user %}
+                <div class="col-12">
+                  <div class="d-flex align-items-start justify-content-between">
+                    <div class="me-3" style="min-width:160px;max-width:320px;">
+                      {% if a.is_image %}
+                        <img src="{{ a.file.url }}" class="img-fluid rounded border" alt="{{ a.original_name }}">
+                      {% elif a.is_audio %}
+                        <audio controls src="{{ a.file.url }}" style="width:100%"></audio>
+                      {% elif a.is_video %}
+                        <video controls src="{{ a.file.url }}" style="width:100%"></video>
+                      {% elif a.is_text_like %}
+                        <a class="btn btn-sm btn-outline-primary" href="{% url 'learning_logs:preview_attachment' a.id %}">预览文本</a>
+                      {% else %}
+                        <span class="text-muted">无法预览的文件类型</span>
+                      {% endif %}
+                    </div>
+                    <div class="flex-grow-1">
+                      <div><strong>{{ a.original_name }}</strong>
+                        {% if a.is_public %}
+                          <span class="badge text-bg-success ms-2">公开</span>
+                        {% else %}
+                          <span class="badge text-bg-secondary ms-2">私密</span>
+                        {% endif %}
+                      </div>
+                      <div class="small text-muted">大小：{{ a.size }} 字节 · 上传于 {{ a.uploaded_at|date:'Y-m-d H:i' }}</div>
+                      <div class="mt-1">
+                        <a href="{{ a.file.url }}" download>下载</a>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              {% endif %}
+            {% endfor %}
+          </div>
+        </div>
+      </div>
+    {% endif %}
+  {% endwith %}
+
+  {% for entry in entries %}
+    <div class="card mb-3">
+      <!-- Card header with timestamp and edit link -->
+      <h4 class="card-header d-flex justify-content-between align-items-center">
+        <span>
+          {{ entry.date_added|date:'M d, Y H:i' }}
+          {% if entry.owner == user %}
+            <a href="{% url 'learning_logs:edit_entry' entry.id %}" class="btn btn-sm btn-outline-primary ms-2">编辑日记</a>
+          {% endif %}
+        </span>
+        <span>
+          {% if entry.is_public %}
+            <span class="badge text-bg-success">公开</span>
+          {% else %}
+            <span class="badge text-bg-secondary">私密</span>
+          {% endif %}
+        </span>
+      </h4>
+      <!-- Card body with entry text -->
+      <div class="card-body">
+        {{ entry.text|linebreaks }}
+
+        {# 附件：紧随正文显示 #}
+        {% with attachments=entry.attachment_set.all %}
+          {% if attachments %}
+            <hr>
+            <h6 class="mb-2">附件</h6>
+            <div class="row g-3">
+              {% for a in attachments %}
+                {% if a.is_public or a.owner == user %}
+                  <div class="col-12">
+                    <div class="d-flex align-items-start justify-content-between">
+                      <div class="me-3" style="min-width:160px;max-width:320px;">
+                        {% if a.is_image %}
+                          <img src="{{ a.file.url }}" class="img-fluid rounded border" alt="{{ a.original_name }}">
+                        {% elif a.is_audio %}
+                          <audio controls src="{{ a.file.url }}" style="width:100%"></audio>
+                        {% elif a.is_video %}
+                          <video controls src="{{ a.file.url }}" style="width:100%"></video>
+                        {% elif a.is_text_like %}
+                          <a class="btn btn-sm btn-outline-primary" href="{% url 'learning_logs:preview_attachment' a.id %}">预览文本</a>
+                        {% else %}
+                          <span class="text-muted">无法预览的文件类型</span>
+                        {% endif %}
+                      </div>
+                      <div class="flex-grow-1">
+                        <div><strong>{{ a.original_name }}</strong>
+                          {% if a.is_public %}
+                            <span class="badge text-bg-success ms-2">公开</span>
+                          {% else %}
+                            <span class="badge text-bg-secondary ms-2">私密</span>
+                          {% endif %}
+                        </div>
+                        <div class="small text-muted">大小：{{ a.size }} 字节 · 上传于 {{ a.uploaded_at|date:'Y-m-d H:i' }}</div>
+                        <div class="mt-1">
+                          <a href="{{ a.file.url }}" download>下载</a>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                {% endif %}
+              {% endfor %}
+            </div>
+          {% endif %}
+        {% endwith %}
+
+        {% if entry.is_public or entry.owner == user %}
+          <hr>
+          <h6 class="mb-2">评论</h6>
+          <div class="mb-3">
+            {% if entry.comment_set.all %}
+              <div class="list-group list-group-flush">
+                {% for c in entry.comment_set.all %}
+                  <div class="list-group-item">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <div class="fw-semibold">{{ c.display_name }}</div>
+                      <div class="small text-muted">{{ c.date_added|date:'Y-m-d H:i' }}</div>
+                    </div>
+                    {% if c.text %}
+                      <div class="mb-1">{{ c.text|linebreaks }}</div>
+                    {% endif %}
+                    {% with catts=c.attachment_set.all %}
+                      {% if catts %}
+                        <div class="mt-1">
+                          {% for a in catts %}
+                            {% if a.is_public or a.owner == user %}
+                              <div class="small mb-1">
+                                <span class="me-1">📎</span>
+                                {% if a.is_text_like %}
+                                  <a href="{% url 'learning_logs:preview_attachment' a.id %}">{{ a.original_name }}</a>
+                                {% else %}
+                                  <a href="{{ a.file.url }}" target="_blank">{{ a.original_name }}</a>
+                                {% endif %}
+                              </div>
+                            {% endif %}
+                          {% endfor %}
+                        </div>
+                      {% endif %}
+                    {% endwith %}
+                  </div>
+                {% endfor %}
+              </div>
+            {% else %}
+              <div class="text-muted">还没有评论，快来抢沙发吧。</div>
+            {% endif %}
+          </div>
+
+          <form action="{% url 'learning_logs:add_comment' entry.id %}" method="post" enctype="multipart/form-data" class="mt-2">
+            {% csrf_token %}
+            <div class="mb-2">
+              <label class="form-label" for="text-{{ entry.id }}">评论内容</label>
+              <textarea name="text" id="text-{{ entry.id }}" class="form-control" rows="3"></textarea>
+            </div>
+            <div class="form-check mb-2">
+              <input class="form-check-input" type="checkbox" name="anonymous" id="anonymous-{{ entry.id }}">
+              <label class="form-check-label" for="anonymous-{{ entry.id }}">匿名评论</label>
+            </div>
+            <div class="mb-2">
+              <label class="form-label">附件（可选，可多选）</label>
+              <input class="form-control" type="file" name="comment_attachments" multiple>
+            </div>
+            <div class="text-end">
+              <button class="btn btn-outline-primary btn-sm" type="submit">发布评论</button>
+            </div>
+          </form>
+        {% endif %}
+
+        {# 移除独立上传入口，附件仅在新建/编辑/评论时上传 #}
+
+      </div>
+    </div>
+  {% empty %}
+    <p>该日记本尚无日记。</p>
+  {% endfor %}
+
+{% endblock content %}

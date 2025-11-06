@@ -1,0 +1,32 @@
+{% extends "learning_logs/base.html" %}
+{% load django_bootstrap5 %}
+
+{% block page_header %}
+  <div class="d-flex justify-content-between align-items-center">
+    <h2 class="mb-0">新建日记本</h2>
+  </div>
+{% endblock page_header %}
+
+{% block content %}
+<div class="d-flex justify-content-center">
+  <div class="card w-100" style="max-width:560px;">
+    <div class="card-body">
+      <form action="{% url 'learning_logs:new_topic' %}" method='post' enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+        {% bootstrap_form form show_labels=True %}
+        <div class="mb-3">
+          <label class="form-label">附件（可选，可多选）</label>
+          <input class="form-control" type="file" name="attachments" multiple>
+          <div class="form-text">支持图片/音频/视频/文本等常见类型。</div>
+        </div>
+        {# 附件可见性继承日记本设置，此处无需单独选择 #}
+        <div class="d-flex justify-content-between mt-3">
+          <a href="{% url 'learning_logs:topics' %}" class="btn btn-outline-primary">取消</a>
+          <button type="submit" class="btn btn-primary">创建日记本</button>
+        </div>
+      </form>
+    </div>
+  </div>
+  </div>
+
+{% endblock content %}

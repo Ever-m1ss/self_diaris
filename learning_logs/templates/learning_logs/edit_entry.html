@@ -1,0 +1,39 @@
+{% extends "learning_logs/base.html" %}
+{% load django_bootstrap5 %}
+
+{% block page_header %}
+  <div class="d-flex justify-content-between align-items-center">
+    <div class="d-flex align-items-center gap-3">
+      <h2 class="mb-0">编辑日记</h2>
+      <a class="small" href="{% url 'learning_logs:topic' topic.text %}">{{ topic }}</a>
+    </div>
+    <div class="d-flex align-items-center gap-2">
+      <a href="{% url 'learning_logs:delete_entry' entry.id %}" class="btn btn-sm btn-outline-danger">删除日记</a>
+    </div>
+  </div>
+{% endblock page_header %}
+
+{% block content %}
+
+<div class="d-flex justify-content-center">
+  <div class="card w-100" style="max-width:720px;">
+    <div class="card-body">
+      <form action="{% url 'learning_logs:edit_entry' entry.id %}" method='post' enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+        {% bootstrap_form form show_labels=True %}
+        <div class="mb-3">
+          <label class="form-label">追加附件（可选，可多选）</label>
+          <input class="form-control" type="file" name="attachments" multiple>
+          <div class="form-text">支持图片/音频/视频/文本等常见类型。</div>
+        </div>
+        {# 附件可见性继承所属日记设置，此处无需单独选择 #}
+        <div class="d-flex justify-content-between mt-3">
+          <a href="{% url 'learning_logs:topic' topic.text %}" class="btn btn-outline-primary">取消</a>
+          <button type="submit" class="btn btn-primary">保存更改</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock content %}

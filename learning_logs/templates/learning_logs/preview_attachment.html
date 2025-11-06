@@ -1,0 +1,17 @@
+{% extends "learning_logs/base.html" %}
+
+{% block page_header %}
+  <h2>附件预览：{{ attachment.original_name }}</h2>
+{% endblock page_header %}
+
+{% block content %}
+  <p><a href="{% url 'learning_logs:topic' topic.text %}">返回日记本</a></p>
+  <div class="card">
+    <div class="card-body">
+      <pre class="mb-0" style="white-space: pre-wrap; word-break: break-word;">{{ text }}</pre>
+    </div>
+  </div>
+  <p class="mt-3">
+    原文件：<a href="{{ attachment.file.url }}" download>{{ attachment.original_name }}</a>
+  </p>
+{% endblock content %}

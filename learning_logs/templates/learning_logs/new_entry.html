@@ -1,0 +1,54 @@
+{% extends "learning_logs/base.html" %}
+{% load django_bootstrap5 %}
+
+{% block page_header %}
+  <div class="d-flex justify-content-between align-items-center">
+    <h2 class="mb-0">写新日记</h2>
+     <a class="small" href="{% url 'learning_logs:topic' topic.text %}">{{ topic }}</a>
+  </div>
+{% endblock page_header %}
+
+{% block content %}
+<div class="d-flex justify-content-center">
+  <div class="card w-100" style="max-width:720px;">
+    <div class="card-body">
+      <form action="{% url 'learning_logs:new_entry' topic.id %}" method='post' enctype="multipart/form-data" novalidate>
+        {% csrf_token %}
+        {% if form.non_field_errors %}
+          <div class="alert alert-warning" role="alert">
+            {{ form.non_field_errors }}
+          </div>
+        {% endif %}
+        {% bootstrap_form form show_labels=True %}
+        <div class="mb-3">
+          <label class="form-label">附件（可选，可多选）</label>
+          <input class="form-control" type="file" name="attachments" id="attachments" multiple>
+          <div class="form-text">支持图片/音频/视频/文本等常见类型。</div>
+        </div>
+        {# 附件可见性继承所属日记设置，此处无需单独选择 #}
+        <div class="d-flex justify-content-between mt-3">
+         <a href="{% url 'learning_logs:topic' topic.text %}" class="btn btn-outline-primary">取消</a>
+          <button type='submit' id="submitBtn" class="btn btn-primary" disabled>发表日记</button>
+        </div>
+      </form>
+      <script>
+      (function(){
+        const ta = document.getElementById('id_text');
+        const file = document.getElementById('attachments');
+        const btn = document.getElementById('submitBtn');
+        if(!ta || !file || !btn) return;
+        function update(){
+          const hasText = (ta.value || '').trim().length > 0;
+          const hasFile = file.files && file.files.length > 0;
+          btn.disabled = !(hasText || hasFile);
+        }
+        ta.addEventListener('input', update);
+        file.addEventListener('change', update);
+        update();
+      })();
+      </script>
+    </div>
+  </div>
+</div>
+
+{% endblock content %}

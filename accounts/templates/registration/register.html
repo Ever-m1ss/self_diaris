@@ -1,0 +1,89 @@
+{% extends "learning_logs/base.html" %}
+{% load django_bootstrap5 %}
+
+{% block page_header %}
+  <h2>注册</h2>
+{% endblock page_header %}
+
+{% block content %}
+
+<div class="d-flex justify-content-center">
+  <div class="auth-decor w-100" style="max-width:640px;">
+    <span class="blob blob-1"></span>
+    <span class="blob blob-2"></span>
+    <div class="card w-100">
+    <div class="card-body">
+      <h4 class="card-title mb-2">创建新账户</h4>
+      <p class="text-muted mb-3">填写下面的信息来创建一个新账户。</p>
+
+      {% if form.errors %}
+        <div class="alert alert-danger" role="alert">
+          提交的表单有错误，请根据提示修正后再试。
+        </div>
+      {% endif %}
+
+      <form action="{% url 'accounts:register' %}" method='post' novalidate>
+        {% csrf_token %}
+
+        {% if form.non_field_errors %}
+          <div class="text-danger small mb-2">{{ form.non_field_errors }}</div>
+        {% endif %}
+
+        <div class="mb-3">
+          <label for="{{ form.username.id_for_label }}" class="form-label">用户名</label>
+          {% if form.username.errors %}
+            <div class="text-danger small">{{ form.username.errors }}</div>
+          {% endif %}
+          <input type="text"
+                 name="{{ form.username.html_name }}"
+                 id="{{ form.username.id_for_label }}"
+                 class="form-control form-control-lg"
+                 value="{{ form.username.value|default:'' }}"
+                 placeholder="4-150 个字符，只能包含字母、数字和 @/./+/-/_"
+                 required autofocus>
+          {# 移除用户名帮助小字 #}
+        </div>
+
+        <div class="mb-3">
+          <label for="{{ form.password1.id_for_label }}" class="form-label">密码</label>
+          {% if form.password1.errors %}
+            <div class="text-danger small">{{ form.password1.errors }}</div>
+          {% endif %}
+          <input type="password"
+                 name="{{ form.password1.html_name }}"
+                 id="{{ form.password1.id_for_label }}"
+                 class="form-control form-control-lg"
+                 placeholder="请输入密码"
+                 required>
+          {# 移除密码帮助小字 #}
+        </div>
+
+        <div class="mb-1">
+          <label for="{{ form.password2.id_for_label }}" class="form-label">确认密码</label>
+          {% if form.password2.errors %}
+            <div class="text-danger small">{{ form.password2.errors }}</div>
+          {% endif %}
+          <input type="password"
+                 name="{{ form.password2.html_name }}"
+                 id="{{ form.password2.id_for_label }}"
+                 class="form-control form-control-lg"
+                 placeholder="请再次输入密码"
+                 required>
+          {# 移除确认密码帮助小字 #}
+        </div>
+
+        <div class="d-grid mt-4">
+          <button type="submit" name="submit" class="btn btn-primary btn-lg">注册</button>
+        </div>
+      </form>
+
+      <hr>
+      <div class="d-flex justify-content-end">
+        <a href="{% url 'accounts:login' %}" class="btn btn-outline-primary btn-sm">点此登录</a>
+      </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock content %}

@@ -1,0 +1,75 @@
+{% extends 'learning_logs/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block body_class %}auth-page{% endblock %}
+{% block page_header %}{% endblock page_header %}
+
+{% block content %}
+
+<div class="auth-wrapper fade-in">
+  <div class="card auth-card shadow-sm">
+    <div class="card-body">
+      <h1 class="auth-title">欢迎回来</h1>
+      <p class="auth-sub">登录继续访问你的日记、主题与多媒体附件。</p>
+
+      {% if form.errors %}
+        <div class="alert alert-danger" role="alert">
+          登录失败：请检查用户名或密码是否正确。
+        </div>
+      {% endif %}
+
+      <form action="{% url 'accounts:login' %}" method='post' novalidate>
+        {% csrf_token %}
+        {% if next %}
+          <input type="hidden" name="next" value="{{ next }}">
+        {% endif %}
+
+        {# 非字段错误（如凭据无效） #}
+        {% if form.non_field_errors %}
+          <div class="text-danger small mb-2">
+            {{ form.non_field_errors }}
+          </div>
+        {% endif %}
+
+        <div class="mb-3">
+          <label for="{{ form.username.id_for_label }}" class="form-label">用户名</label>
+          {% if form.username.errors %}
+            <div class="text-danger small">{{ form.username.errors }}</div>
+          {% endif %}
+          <input type="text"
+                 name="{{ form.username.html_name }}"
+                 id="{{ form.username.id_for_label }}"
+                 class="form-control form-control-lg"
+                 value="{{ form.username.value|default:'' }}"
+                 placeholder="请输入用户名"
+                 required autofocus>
+        </div>
+
+        <div class="mb-1">
+          <label for="{{ form.password.id_for_label }}" class="form-label">密码</label>
+          {% if form.password.errors %}
+            <div class="text-danger small">{{ form.password.errors }}</div>
+          {% endif %}
+          <input type="password"
+                 name="{{ form.password.html_name }}"
+                 id="{{ form.password.id_for_label }}"
+                 class="form-control form-control-lg"
+                 placeholder="请输入密码"
+                 required>
+        </div>
+
+        {# 去掉“忘记密码”链接，保留表单简洁布局 #}
+
+        <div class="d-grid mt-3">
+          <button type="submit" class="btn btn-primary btn-lg">登录</button>
+        </div>
+      </form>
+
+      <div class="auth-extra-links">
+        还没有账号？<a href="{% url 'accounts:register' %}">立即注册</a>
+      </div>
+      </div>
+  </div>
+</div>
+
+{% endblock content %}
