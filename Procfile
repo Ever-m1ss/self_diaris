@@ -1,1 +1,1 @@
-web: gunicorn ll_project.wsgi --workers=2 --bind=0.0.0.0:$PORT --timeout 120 --log-file -
+web: bash start.sh

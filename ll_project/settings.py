@@ -26,8 +26,15 @@ SECRET_KEY = os.getenv('SECRET_KEY', 'dev-insecure-key-change-me')
 DEBUG = os.getenv('DEBUG', 'True').lower() in ('1', 'true', 'yes')
 
 # 动态允许主机：从 RENDER_EXTERNAL_HOSTNAME 注入；同时允许本地测试
+# Render / Railway 动态主机：Render 使用 RENDER_EXTERNAL_HOSTNAME，Railway 服务提供 RAILWAY_PUBLIC_DOMAIN。
 _render_host = os.getenv('RENDER_EXTERNAL_HOSTNAME')
-ALLOWED_HOSTS = ['localhost', '127.0.0.1'] + ([_render_host] if _render_host else [])
+_railway_host = os.getenv('RAILWAY_PUBLIC_DOMAIN')
+ALLOWED_HOSTS = ['localhost', '127.0.0.1']
+if _render_host:
+    ALLOWED_HOSTS.append(_render_host)
+if _railway_host:
+    # Railway 会提供形如 xxx.up.railway.app 的域名
+    ALLOWED_HOSTS.append(_railway_host)
 # 额外主机（逗号分隔），用于绑定自定义域名时无需改代码
 _extra_hosts = os.getenv('ALLOWED_HOSTS_EXTRA', '')
 if _extra_hosts:
@@ -37,6 +44,8 @@ if _extra_hosts:
 CSRF_TRUSTED_ORIGINS = []
 if _render_host:
     CSRF_TRUSTED_ORIGINS.append(f'https://{_render_host}')
+if _railway_host:
+    CSRF_TRUSTED_ORIGINS.append(f'https://{_railway_host}')
 _extra_csrf = os.getenv('CSRF_TRUSTED_ORIGINS_EXTRA', '')
 if _extra_csrf:
     CSRF_TRUSTED_ORIGINS += [o.strip() for o in _extra_csrf.split(',') if o.strip()]
