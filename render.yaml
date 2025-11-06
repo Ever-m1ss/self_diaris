@@ -6,8 +6,7 @@ services:
     buildCommand: |
       pip install -r requirements.txt
       python manage.py collectstatic --noinput
-    startCommand: gunicorn ll_project.wsgi --workers=2 --bind=0.0.0.0:$PORT --timeout 120
-    postDeployCommand: python manage.py migrate
+    startCommand: ./start.sh
     envVars:
       - key: SECRET_KEY
         generateValue: true
@@ -17,17 +16,14 @@ services:
         fromDatabase:
           name: diary-db
           property: connectionString
-      # Cloudinary：在 Render 控制台的 Environment → Secret Files/Env Vars 中添加如下变量
-      # 形如：cloudinary://<api_key>:<api_secret>@<cloud_name>
       - key: CLOUDINARY_URL
         sync: false
-      # 可选：自定义域名时，添加以下两个以免改代码（逗号分隔）
       # - key: ALLOWED_HOSTS_EXTRA
       #   value: "your.com,www.your.com"
       # - key: CSRF_TRUSTED_ORIGINS_EXTRA
       #   value: "https://your.com,https://www.your.com"
     autoDeploy: true
-    healthCheckPath: /
+    healthCheckPath: /healthz
 
 databases:
   - name: diary-db
