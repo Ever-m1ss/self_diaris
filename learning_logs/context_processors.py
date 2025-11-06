@@ -49,10 +49,12 @@ def background_image(request):
 
 
 def background_video(request):
-    """Expose background video relative static path to templates.
-    Reads settings.BACKGROUND_VIDEO, falls back to default mp4 in static/video.
+    """Expose background video path or absolute URL to templates.
+    If settings.BACKGROUND_VIDEO is an absolute URL (e.g., Cloudinary), pass through.
+    Otherwise treat it as a static-relative path.
+    Default is empty string to avoid 100MB+ assets in repo; template will simply not preload if empty.
     """
-    path = getattr(settings, 'BACKGROUND_VIDEO', 'video/Ghost of Tsushima Tree (Seamless).mp4')
+    path = getattr(settings, 'BACKGROUND_VIDEO', '')
     return {
         'BACKGROUND_VIDEO': path,
     }

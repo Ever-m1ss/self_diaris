@@ -180,8 +180,10 @@ LOGIN_URL = 'accounts:login'
 mimetypes.add_type('video/mp4', '.m246', strict=False)
 mimetypes.add_type('video/mp4', '.mp4', strict=False)
 
-# Background video file (relative to STATIC_URL). You can set this to 'video/your-file.m246'.
-BACKGROUND_VIDEO = 'video/Ghost of Tsushima Tree (Seamless).mp4'
+# Background video file or absolute URL. Leave blank to disable local static video preload.
+# Example for Cloudinary hosted video:
+# BACKGROUND_VIDEO = 'https://res.cloudinary.com/<cloud_name>/video/upload/v1234567890/your_clip.mp4'
+BACKGROUND_VIDEO = os.getenv('BACKGROUND_VIDEO', '')
 
 #################################################################
 # 生产安全附加设置（当 DEBUG=False 时启用更加安全的选项）
