@@ -20,6 +20,9 @@ media/
 !media/.gitkeep
 static/video/*.mp4
 
+# Env files
+.env
+
 # VS Code
 .vscode/
 

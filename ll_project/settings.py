@@ -25,27 +25,18 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 SECRET_KEY = os.getenv('SECRET_KEY', 'dev-insecure-key-change-me')
 DEBUG = os.getenv('DEBUG', 'True').lower() in ('1', 'true', 'yes')
 
-# 动态允许主机：从 RENDER_EXTERNAL_HOSTNAME 注入；同时允许本地测试
-# Render / Railway 动态主机：Render 使用 RENDER_EXTERNAL_HOSTNAME，Railway 服务提供 RAILWAY_PUBLIC_DOMAIN。
+# 动态允许主机：Render 使用 RENDER_EXTERNAL_HOSTNAME；阿里云 ECS/容器需通过环境变量 ALLOWED_HOSTS_EXTRA 指定公网域名/IP
 _render_host = os.getenv('RENDER_EXTERNAL_HOSTNAME')
-_railway_host = os.getenv('RAILWAY_PUBLIC_DOMAIN')
-ALLOWED_HOSTS = ['localhost', '127.0.0.1']
-if _render_host:
-    ALLOWED_HOSTS.append(_render_host)
-if _railway_host:
-    # Railway 会提供形如 xxx.up.railway.app 的域名
-    ALLOWED_HOSTS.append(_railway_host)
-# 额外主机（逗号分隔），用于绑定自定义域名时无需改代码
+ALLOWED_HOSTS = ['localhost', '127.0.0.1'] + ([_render_host] if _render_host else [])
+# 额外主机（逗号分隔），例如你的阿里云公网 IP 或绑定的域名 diary.example.com
 _extra_hosts = os.getenv('ALLOWED_HOSTS_EXTRA', '')
 if _extra_hosts:
     ALLOWED_HOSTS += [h.strip() for h in _extra_hosts.split(',') if h.strip()]
 
-# CSRF 可信任域名：生产时根据外部主机填充
+# CSRF 可信任域名：生产时根据外部主机/自定义域名填充（HTTPS 域名）
 CSRF_TRUSTED_ORIGINS = []
 if _render_host:
     CSRF_TRUSTED_ORIGINS.append(f'https://{_render_host}')
-if _railway_host:
-    CSRF_TRUSTED_ORIGINS.append(f'https://{_railway_host}')
 _extra_csrf = os.getenv('CSRF_TRUSTED_ORIGINS_EXTRA', '')
 if _extra_csrf:
     CSRF_TRUSTED_ORIGINS += [o.strip() for o in _extra_csrf.split(',') if o.strip()]
@@ -210,9 +201,16 @@ if not DEBUG:
     LOGGING = {
         'version': 1,
         'disable_existing_loggers': False,
+        'formatters': {
+            'default': {
+                'format': '[{asctime}] {levelname} {name}: {message}',
+                'style': '{'
+            },
+        },
         'handlers': {
             'console': {
                 'class': 'logging.StreamHandler',
+                'formatter': 'default'
             },
         },
         'root': {
