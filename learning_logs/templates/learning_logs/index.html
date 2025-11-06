@@ -2,17 +2,19 @@
 {% load static %}
 
 {% block extra_head %}
-  {% if BACKGROUND_VIDEO|slice:":8" == "https://" or BACKGROUND_VIDEO|slice:":7" == "http://" %}
-    <link rel="preload" href="{{ BACKGROUND_VIDEO }}" as="video" type="video/mp4">
-  {% else %}
-    <link rel="preload" href="{% static BACKGROUND_VIDEO %}" as="video" type="video/mp4">
+  {% if BACKGROUND_VIDEO %}
+    {% if BACKGROUND_VIDEO|slice:":8" == "https://" or BACKGROUND_VIDEO|slice:":7" == "http://" %}
+      <link rel="preload" href="{{ BACKGROUND_VIDEO }}" as="video" type="video/mp4">
+    {% else %}
+      <link rel="preload" href="{% static BACKGROUND_VIDEO %}" as="video" type="video/mp4">
+    {% endif %}
   {% endif %}
 {% endblock %}
 
 {% block body_class %}{% if not user.is_authenticated %}home-page{% endif %}{% endblock %}
 
 {% block background %}
-  {% if not user.is_authenticated %}
+  {% if not user.is_authenticated and BACKGROUND_VIDEO %}
     <div id="bg-video" aria-hidden="true">
       <video id="bgVideoEl" autoplay muted loop playsinline preload="auto"
         poster="{{ background_image_url }}"
