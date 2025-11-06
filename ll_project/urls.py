@@ -15,6 +15,7 @@ Including another URLconf
 """
 from django.contrib import admin
 from django.urls import path, include
+from django.http import HttpResponse
 from django.conf import settings
 from django.conf.urls.static import static
 
@@ -22,6 +23,8 @@ urlpatterns = [
     path('admin/', admin.site.urls),
     path('accounts/', include('accounts.urls')),
     path('', include('learning_logs.urls')),
+    # 健康检查：Render 用于 health check
+    path('healthz', lambda request: HttpResponse('ok'), name='healthz'),
 ]
 
 # 仅在开发模式下映射媒体文件；静态文件由 staticfiles 应用处理
