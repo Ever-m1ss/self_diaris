@@ -334,3 +334,74 @@ gunicorn ll_project.wsgi:application --bind 0.0.0.0:8000 --workers 3
 
 ---
 完成以上步骤后，你的站点应在 `http://<公网IP>/` （或绑定域名）正常访问。若任一步骤仍出现问题，优先在 10. 常见故障速查表中比对，再反馈具体报错。祝部署顺利。
+
+## 附：日常运维速查（一键更新 / 备份 / 自启动 / HTTPS）
+
+以下命令均在服务器上执行（ECS）。项目目录假设为 `/root/deploy_package/project`。
+
+### A. 一键更新上线
+
+```
+cd /root/deploy_package/project
+bash scripts/deploy_update.sh
+```
+
+可选参数：`--no-migrate`（跳过迁移），`--service diary.service`（自定义 unit 名）。
+
+### B. 立即备份 SQLite 数据库
+
+```
+cd /root/deploy_package/project
+bash scripts/backup_sqlite.sh
+ls -lh backups/
+```
+
+会生成形如 `backups/db-20250101-120000.sqlite3.gz` 的压缩包，默认保留最近 10 份，可通过环境变量 `KEEP_BACKUPS` 修改。
+
+> 提示：如需自动备份，可添加 crontab：
+> `0 3 * * * cd /root/deploy_package/project && bash scripts/backup_sqlite.sh >> /var/log/diary-backup.log 2>&1`
+
+### C. systemd 自启动与健康检查
+
+```
+sudo systemctl enable --now diary.service
+sudo systemctl status diary.service --no-pager
+sudo journalctl -u diary.service -n 100 --no-pager
+```
+
+若需重新安装 unit，可参考 `ops/diary.service` 并执行：
+
+```
+sudo cp ops/diary.service /etc/systemd/system/diary.service
+sudo systemctl daemon-reload
+sudo systemctl enable --now diary.service
+```
+
+### D. Nginx 反代与 HTTPS
+
+HTTP 反代示例：`ops/nginx.conf.example`
+
+```
+sudo cp ops/nginx.conf.example /etc/nginx/conf.d/diary.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+HTTPS 示例：`ops/nginx-ssl.conf.example`（需要你把证书放到 `/etc/nginx/ssl/`）
+
+```
+sudo cp ops/nginx-ssl.conf.example /etc/nginx/conf.d/diary-ssl.conf
+sudo nginx -t && sudo systemctl reload nginx
+```
+
+### E. 生产环境 .env 样例
+
+见 `.env.production.example`。常用关键项：
+
+- `DEBUG=false`
+- `ALLOWED_HOSTS_EXTRA=your.domain,server.ip`
+- `CSRF_TRUSTED_ORIGINS_EXTRA=https://your.domain`
+- `BACKGROUND_VIDEO=video/bg.mp4`（或 https 外链）
+- `CSRF_COOKIE_SECURE=true`、`SESSION_COOKIE_SECURE=true`
+
+应用 .env 后重启服务：`sudo systemctl restart diary.service`。
+

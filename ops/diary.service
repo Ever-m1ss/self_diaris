@@ -1,0 +1,14 @@
+[Unit]
+Description=Gunicorn for self_diaris
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/root/deploy_package/project
+Environment="PATH=/root/deploy_package/venv/bin"
+ExecStart=/root/deploy_package/venv/bin/gunicorn ll_project.wsgi:application --bind 0.0.0.0:8000 --workers 3
+Restart=on-failure
+User=root
+
+[Install]
+WantedBy=multi-user.target
