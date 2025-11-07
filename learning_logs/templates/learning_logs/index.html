@@ -3,7 +3,8 @@
 
 {% block extra_head %}
   {% if BACKGROUND_VIDEO %}
-    {% if BACKGROUND_VIDEO|slice:":8" == "https://" or BACKGROUND_VIDEO|slice:":7" == "http://" %}
+    {# 预加载策略：根据 settings 中的 BACKGROUND_VIDEO_PRELOAD 控制。auto 可能导致大文件占用带宽，metadata 更保守。 #}
+    {% if BACKGROUND_VIDEO|slice":8" == "https://" or BACKGROUND_VIDEO|slice":7" == "http://" %}
       <link rel="preload" href="{{ BACKGROUND_VIDEO }}" as="video" type="video/mp4">
     {% else %}
       <link rel="preload" href="{% static BACKGROUND_VIDEO %}" as="video" type="video/mp4">
@@ -16,7 +17,7 @@
 {% block background %}
   {% if not user.is_authenticated and BACKGROUND_VIDEO %}
     <div id="bg-video" aria-hidden="true">
-      <video id="bgVideoEl" autoplay muted loop playsinline preload="auto"
+      <video id="bgVideoEl" autoplay muted loop playsinline preload="{{ BACKGROUND_VIDEO_PRELOAD|default:'metadata' }}"
         poster="{{ background_image_url }}"
         src="{% if BACKGROUND_VIDEO|slice:':8' == 'https://' or BACKGROUND_VIDEO|slice:':7' == 'http://' %}{{ BACKGROUND_VIDEO }}{% else %}{% static BACKGROUND_VIDEO %}{% endif %}">
         您的浏览器不支持 HTML5 视频。
