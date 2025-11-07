@@ -15,6 +15,13 @@ import mimetypes
 import os
 from urllib.parse import urlparse
 
+# 加载 .env（若存在），便于在服务器通过 .env 管理配置而不必 export 环境变量
+try:
+    from dotenv import load_dotenv  # type: ignore
+    _env_loaded = load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / '.env')
+except Exception:
+    _env_loaded = False
+
 # Build paths inside the project like this: BASE_DIR / 'subdir'.
 BASE_DIR = Path(__file__).resolve().parent.parent
 

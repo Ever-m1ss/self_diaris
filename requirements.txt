@@ -3,6 +3,7 @@ django-bootstrap5>=22.1
 psycopg2-binary>=2.9
 whitenoise>=6.5
 gunicorn>=21.2
+python-dotenv>=1.0
 # Optional: parsing DATABASE_URL if needed (we used urllib.parse, so not required)
 # dj-database-url>=2.1
 cloudinary>=1.41
