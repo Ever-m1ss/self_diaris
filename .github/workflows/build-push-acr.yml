@@ -1,0 +1,58 @@
+name: Build and Push to Aliyun ACR
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [ main ]
+    paths-ignore:
+      - '**/*.md'
+      - '.gitignore'
+      - 'media/**'
+
+env:
+  # 默认使用清华 PyPI 镜像加速构建，可在需要时覆盖
+  PIP_INDEX_URL: https://pypi.tuna.tsinghua.edu.cn/simple
+
+jobs:
+  build-and-push:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Log in to Aliyun ACR
+        uses: docker/login-action@v3
+        with:
+          registry: ${{ secrets.ACR_REGISTRY }}
+          username: ${{ secrets.ACR_USERNAME }}
+          password: ${{ secrets.ACR_PASSWORD }}
+
+      - name: Compute image name
+        id: meta
+        run: |
+          # e.g. registry.cn-beijing.aliyuncs.com/your_ns/self_diaris
+          IMAGE="${{ secrets.ACR_REGISTRY }}/${{ secrets.ACR_NAMESPACE }}/${{ secrets.ACR_REPO }}"
+          echo "image=$IMAGE" >> $GITHUB_OUTPUT
+
+      - name: Build and push
+        uses: docker/build-push-action@v6
+        with:
+          context: .
+          file: ./Dockerfile
+          push: true
+          build-args: |
+            PIP_INDEX_URL=${{ env.PIP_INDEX_URL }}
+          tags: |
+            ${{ steps.meta.outputs.image }}:latest
+            ${{ steps.meta.outputs.image }}:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+      - name: Show pushed image
+        run: echo "Pushed ${{ steps.meta.outputs.image }}:latest"

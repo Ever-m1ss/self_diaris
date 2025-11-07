@@ -18,7 +18,12 @@ from urllib.parse import urlparse
 # 加载 .env（若存在），便于在服务器通过 .env 管理配置而不必 export 环境变量
 try:
     from dotenv import load_dotenv  # type: ignore
-    _env_loaded = load_dotenv(dotenv_path=Path(__file__).resolve().parent.parent / '.env')
+    # 使用 override=True 让 .env 中的变量覆盖已存在的同名环境变量（例如之前 export 过 DEBUG=False 的残留），
+    # 避免出现“修改 .env 后仍旧读取旧值”的困惑。
+    _env_loaded = load_dotenv(
+        dotenv_path=Path(__file__).resolve().parent.parent / '.env',
+        override=True,
+    )
 except Exception:
     _env_loaded = False
 

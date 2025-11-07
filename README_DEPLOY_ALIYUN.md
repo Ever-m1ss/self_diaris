@@ -245,7 +245,13 @@ server {
 		server_name _;
 		# 注意：STATIC_ROOT=project/staticfiles，Nginx 应该指向 staticfiles
 		location /static/ { alias /root/deploy_package/project/staticfiles/; }
-		location / { proxy_pass http://127.0.0.1:8000; proxy_set_header Host $host; proxy_set_header X-Real-IP $remote_addr; }
+		location / {
+			proxy_pass http://127.0.0.1:8000;
+			proxy_set_header Host $host;
+			proxy_set_header X-Real-IP $remote_addr;
+			proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+			proxy_set_header X-Forwarded-Proto $scheme;
+		}
 }
 EOF
 sudo nginx -t && sudo systemctl reload nginx
