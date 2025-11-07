@@ -4,7 +4,7 @@
 {% block extra_head %}
   {% if BACKGROUND_VIDEO %}
     {# 预加载策略：根据 settings 中的 BACKGROUND_VIDEO_PRELOAD 控制。auto 可能导致大文件占用带宽，metadata 更保守。 #}
-    {% if BACKGROUND_VIDEO|slice":8" == "https://" or BACKGROUND_VIDEO|slice":7" == "http://" %}
+    {% if BACKGROUND_VIDEO|slice:":8" == "https://" or BACKGROUND_VIDEO|slice:":7" == "http://" %}
       <link rel="preload" href="{{ BACKGROUND_VIDEO }}" as="video" type="video/mp4">
     {% else %}
       <link rel="preload" href="{% static BACKGROUND_VIDEO %}" as="video" type="video/mp4">
