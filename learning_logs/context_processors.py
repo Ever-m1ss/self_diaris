@@ -2,6 +2,7 @@ import random
 
 from django.templatetags.static import static
 from django.conf import settings
+from django.contrib.staticfiles import finders
 
 COMMON_BACKGROUNDS = [
     'img/backgrounds/bg1.jpg',
@@ -54,7 +55,29 @@ def background_video(request):
     Otherwise treat it as a static-relative path.
     Default is empty string to avoid 100MB+ assets in repo; template will simply not preload if empty.
     """
-    path = getattr(settings, 'BACKGROUND_VIDEO', '')
+    path = getattr(settings, 'BACKGROUND_VIDEO', '') or ''
+
+    # Absolute URLs pass through directly
+    if path.startswith(('http://', 'https://')):
+        return {
+            'BACKGROUND_VIDEO': path,
+            'BACKGROUND_VIDEO_PRELOAD': getattr(settings, 'BACKGROUND_VIDEO_PRELOAD', 'metadata'),
+        }
+
+    # For local static paths, suppress template errors when file isn't collected yet.
+    # If the static file can't be found by Django's finders (including STATIC_ROOT/manifest),
+    # return empty so templates won't call `{% static %}` and trigger a manifest error.
+    if path:
+        try:
+            found = finders.find(path)
+        except Exception:
+            found = None
+        if not found:
+            return {
+                'BACKGROUND_VIDEO': '',
+                'BACKGROUND_VIDEO_PRELOAD': getattr(settings, 'BACKGROUND_VIDEO_PRELOAD', 'metadata'),
+            }
     return {
         'BACKGROUND_VIDEO': path,
+        'BACKGROUND_VIDEO_PRELOAD': getattr(settings, 'BACKGROUND_VIDEO_PRELOAD', 'metadata'),
     }

@@ -184,6 +184,8 @@ mimetypes.add_type('video/mp4', '.mp4', strict=False)
 # Example for Cloudinary hosted video:
 # BACKGROUND_VIDEO = 'https://res.cloudinary.com/<cloud_name>/video/upload/v1234567890/your_clip.mp4'
 BACKGROUND_VIDEO = os.getenv('BACKGROUND_VIDEO', '')
+# 控制 <video preload> 策略：auto/metadata/none（默认 metadata，避免与首屏资源争带宽导致卡顿）
+BACKGROUND_VIDEO_PRELOAD = os.getenv('BACKGROUND_VIDEO_PRELOAD', 'metadata').lower()
 
 #################################################################
 # 生产安全附加设置（当 DEBUG=False 时启用更加安全的选项）

@@ -12,6 +12,7 @@ env/
 venv/
 .venv/
 ll_env/
+wheels/
 
 # Django
 db.sqlite3
