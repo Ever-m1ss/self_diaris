@@ -210,8 +210,12 @@ SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() in (
 # 生产安全附加设置（当 DEBUG=False 时启用更加安全的选项）
 #################################################################
 if not DEBUG:
-    SESSION_COOKIE_SECURE = True
-    CSRF_COOKIE_SECURE = True
+    # 生产默认更安全：如果未显式通过环境变量配置，则强制为 True；
+    # 若已在 .env 中明确设置（用于调试/过渡期 HTTP），则尊重显式值。
+    if 'SESSION_COOKIE_SECURE' not in os.environ:
+        SESSION_COOKIE_SECURE = True
+    if 'CSRF_COOKIE_SECURE' not in os.environ:
+        CSRF_COOKIE_SECURE = True
     SECURE_BROWSER_XSS_FILTER = True
     SECURE_CONTENT_TYPE_NOSNIFF = True
     SECURE_HSTS_SECONDS = int(os.getenv('SECURE_HSTS_SECONDS', '0'))  # 可在环境变量中设置，如 31536000
