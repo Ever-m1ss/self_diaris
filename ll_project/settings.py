@@ -199,6 +199,13 @@ BACKGROUND_VIDEO = os.getenv('BACKGROUND_VIDEO', '')
 # 控制 <video preload> 策略：auto/metadata/none（默认 metadata，避免与首屏资源争带宽导致卡顿）
 BACKGROUND_VIDEO_PRELOAD = os.getenv('BACKGROUND_VIDEO_PRELOAD', 'metadata').lower()
 
+# 显式控制 Cookie 的 Secure 标志（默认在开发环境关闭，生产 DEBUG=False 时会在下方强制开启）。
+# 如需在开发/HTTP 环境中确保不携带 Secure，可在 .env 中设置：
+#   CSRF_COOKIE_SECURE=false
+#   SESSION_COOKIE_SECURE=false
+CSRF_COOKIE_SECURE = os.getenv('CSRF_COOKIE_SECURE', 'false').lower() in ('1', 'true', 'yes')
+SESSION_COOKIE_SECURE = os.getenv('SESSION_COOKIE_SECURE', 'false').lower() in ('1', 'true', 'yes')
+
 #################################################################
 # 生产安全附加设置（当 DEBUG=False 时启用更加安全的选项）
 #################################################################
