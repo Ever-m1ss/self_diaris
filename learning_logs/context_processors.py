@@ -57,6 +57,18 @@ def background_video(request):
     """
     path = getattr(settings, 'BACKGROUND_VIDEO', '') or ''
 
+    # Fallback: if not explicitly configured, try common default locations
+    # like static/video/bg.mp4 to preserve behavior after env resets.
+    if not path:
+        for candidate in ('video/bg.mp4', 'video/bg.webm'):
+            try:
+                if finders.find(candidate):
+                    path = candidate
+                    break
+            except Exception:
+                # Ignore lookup errors and continue
+                pass
+
     # Absolute URLs pass through directly
     if path.startswith(('http://', 'https://')):
         return {
