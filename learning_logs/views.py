@@ -1,7 +1,10 @@
-from django.shortcuts import render, redirect
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
-from django.http import Http404
+from django.http import Http404, JsonResponse, HttpResponseBadRequest
 from django.db.models import Q
+from django.views.decorators.http import require_POST
+from django.conf import settings
+from django.core.files.uploadedfile import UploadedFile
 
 from .models import Topic, Entry, Comment, Attachment
 from .forms import TopicForm, EntryForm, CommentForm
@@ -165,22 +168,108 @@ def delete_entry(request, entry_id):
     })
 
 
-def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comment=None):
+def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comment=None, relative_paths=None):
     if not files:
-        return
-    for f in files:
-        # 附件公开性由父对象决定
+        return []
+    created = []
+    rel_map = {}
+    if relative_paths:
+        # relative_paths 与 files 顺序对齐
+        for idx, rp in relative_paths.items():
+            rel_map[int(idx)] = rp
+    for idx, f in enumerate(files):
+        if not isinstance(f, UploadedFile):
+            continue
         derived_public = False
         if entry is not None:
             derived_public = bool(entry.is_public)
         elif topic is not None:
             derived_public = bool(topic.is_public)
         elif comment is not None:
-            # 评论不允许私密，评论附件一律公开
             derived_public = True
         att = Attachment(owner=owner, topic=topic, entry=entry, comment=comment, file=f, is_public=derived_public)
         att.original_name = f.name
+        if rel_map.get(idx):
+            att.relative_path = rel_map[idx]
         att.save()
+        created.append(att)
+    return created
+
+
+@login_required
+@require_POST
+def delete_attachment(request, attachment_id):
+    att = get_object_or_404(Attachment, id=attachment_id)
+    # 权限：仅上传者或所属 topic/entry 作者可删
+    parent_owner = None
+    if att.entry_id and att.entry:
+        parent_owner = att.entry.owner
+    elif att.topic_id and att.topic:
+        parent_owner = att.topic.owner
+    elif att.comment_id and att.comment and att.comment.entry:
+        parent_owner = att.comment.entry.owner
+    if att.owner != request.user and parent_owner != request.user:
+        raise Http404
+    att.delete()
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({'ok': True})
+    # 回退：返回来源页
+    return redirect(request.META.get('HTTP_REFERER', 'learning_logs:index'))
+
+
+@login_required
+@require_POST
+def upload_attachments_api(request):
+    """异步上传接口：支持多文件与文件夹（相对路径）。
+    期望前端 name=files，多值；对应相对路径通过 formData.append('relative_path[index]', path)
+    需提供 parent_type 与 parent_id 指向归属（topic/entry/comment）。
+    """
+    parent_type = request.POST.get('parent_type')
+    parent_id = request.POST.get('parent_id')
+    if parent_type not in {'topic', 'entry', 'comment'}:
+        return HttpResponseBadRequest('invalid parent_type')
+    try:
+        parent_id_int = int(parent_id)
+    except Exception:
+        return HttpResponseBadRequest('invalid parent_id')
+
+    parent_obj = None
+    kw = {'topic': None, 'entry': None, 'comment': None}
+    if parent_type == 'topic':
+        parent_obj = get_object_or_404(Topic, id=parent_id_int)
+        kw['topic'] = parent_obj
+    elif parent_type == 'entry':
+        parent_obj = get_object_or_404(Entry, id=parent_id_int)
+        kw['entry'] = parent_obj
+    else:
+        parent_obj = get_object_or_404(Comment, id=parent_id_int)
+        kw['comment'] = parent_obj
+
+    # 权限：必须是作者或可附加的公开对象
+    if parent_type == 'topic' and parent_obj.owner != request.user:
+        raise Http404
+    if parent_type == 'entry' and parent_obj.owner != request.user:
+        raise Http404
+    if parent_type == 'comment' and parent_obj.user != request.user:
+        raise Http404
+
+    files = request.FILES.getlist('files')
+    rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
+    created = _save_attachments_from_request(files, request.user, **kw, relative_paths=rel_paths)
+    data = []
+    for a in created:
+        data.append({
+            'id': a.id,
+            'name': a.original_name,
+            'url': a.file.url,
+            'is_image': a.is_image,
+            'is_text': a.is_text_like,
+            'is_audio': a.is_audio,
+            'is_video': a.is_video,
+            'size': a.size,
+            'relative_path': a.relative_path,
+        })
+    return JsonResponse({'ok': True, 'files': data})
 
 
 @login_required

@@ -22,52 +22,23 @@
 
 {% block content %}
 
-  {# 日记本附件 #}
-  {% with tatts=topic.attachment_set.all %}
-    {% if tatts %}
-      <div class="card mb-3">
-        <div class="card-body">
-          <h6 class="mb-2">日记本附件</h6>
-          <div class="row g-3">
-            {% for a in tatts %}
-              {% if a.is_public or a.owner == user %}
-                <div class="col-12">
-                  <div class="d-flex align-items-start justify-content-between">
-                    <div class="me-3" style="min-width:160px;max-width:320px;">
-                      {% if a.is_image %}
-                        <img src="{{ a.file.url }}" class="img-fluid rounded border" alt="{{ a.original_name }}">
-                      {% elif a.is_audio %}
-                        <audio controls src="{{ a.file.url }}" style="width:100%"></audio>
-                      {% elif a.is_video %}
-                        <video controls src="{{ a.file.url }}" style="width:100%"></video>
-                      {% elif a.is_text_like %}
-                        <a class="btn btn-sm btn-outline-primary" href="{% url 'learning_logs:preview_attachment' a.id %}">预览文本</a>
-                      {% else %}
-                        <span class="text-muted">无法预览的文件类型</span>
-                      {% endif %}
-                    </div>
-                    <div class="flex-grow-1">
-                      <div><strong>{{ a.original_name }}</strong>
-                        {% if a.is_public %}
-                          <span class="badge text-bg-success ms-2">公开</span>
-                        {% else %}
-                          <span class="badge text-bg-secondary ms-2">私密</span>
-                        {% endif %}
-                      </div>
-                      <div class="small text-muted">大小：{{ a.size }} 字节 · 上传于 {{ a.uploaded_at|date:'Y-m-d H:i' }}</div>
-                      <div class="mt-1">
-                        <a href="{{ a.file.url }}" download>下载</a>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              {% endif %}
-            {% endfor %}
+  {# 日记本附件（统一 GitHub 风格 + 异步上传） #}
+  <div class="card mb-3">
+    <div class="card-body">
+      <h6 class="mb-2">日记本附件</h6>
+      <div class="ll-attachments" data-parent-type="topic" data-parent-id="{{ topic.id }}">
+        {% with attachments=topic.attachment_set.all %}
+          {% include 'learning_logs/_attachments_list.html' with attachments=attachments parent_owner=topic.owner %}
+        {% endwith %}
+        {% if user == topic.owner %}
+          <div class="mt-2">
+            <input class="form-control" type="file" multiple webkitdirectory directory>
+            <div class="form-text">可选择多个文件或文件夹上传。</div>
           </div>
-        </div>
+        {% endif %}
       </div>
-    {% endif %}
-  {% endwith %}
+    </div>
+  </div>
 
   {% for entry in entries %}
     <div class="card mb-3">
@@ -93,46 +64,17 @@
 
         {# 附件：紧随正文显示 #}
         {% with attachments=entry.attachment_set.all %}
-          {% if attachments %}
-            <hr>
-            <h6 class="mb-2">附件</h6>
-            <div class="row g-3">
-              {% for a in attachments %}
-                {% if a.is_public or a.owner == user %}
-                  <div class="col-12">
-                    <div class="d-flex align-items-start justify-content-between">
-                      <div class="me-3" style="min-width:160px;max-width:320px;">
-                        {% if a.is_image %}
-                          <img src="{{ a.file.url }}" class="img-fluid rounded border" alt="{{ a.original_name }}">
-                        {% elif a.is_audio %}
-                          <audio controls src="{{ a.file.url }}" style="width:100%"></audio>
-                        {% elif a.is_video %}
-                          <video controls src="{{ a.file.url }}" style="width:100%"></video>
-                        {% elif a.is_text_like %}
-                          <a class="btn btn-sm btn-outline-primary" href="{% url 'learning_logs:preview_attachment' a.id %}">预览文本</a>
-                        {% else %}
-                          <span class="text-muted">无法预览的文件类型</span>
-                        {% endif %}
-                      </div>
-                      <div class="flex-grow-1">
-                        <div><strong>{{ a.original_name }}</strong>
-                          {% if a.is_public %}
-                            <span class="badge text-bg-success ms-2">公开</span>
-                          {% else %}
-                            <span class="badge text-bg-secondary ms-2">私密</span>
-                          {% endif %}
-                        </div>
-                        <div class="small text-muted">大小：{{ a.size }} 字节 · 上传于 {{ a.uploaded_at|date:'Y-m-d H:i' }}</div>
-                        <div class="mt-1">
-                          <a href="{{ a.file.url }}" download>下载</a>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                {% endif %}
-              {% endfor %}
-            </div>
-          {% endif %}
+          <hr>
+          <h6 class="mb-2">附件</h6>
+          <div class="ll-attachments" data-parent-type="entry" data-parent-id="{{ entry.id }}">
+            {% include 'learning_logs/_attachments_list.html' with attachments=attachments parent_owner=entry.owner %}
+            {% if user == entry.owner %}
+              <div class="mt-2">
+                <input class="form-control" type="file" multiple webkitdirectory directory>
+                <div class="form-text">可选择多个文件或文件夹上传。</div>
+              </div>
+            {% endif %}
+          </div>
         {% endwith %}
 
         {% if entry.is_public or entry.owner == user %}
@@ -150,21 +92,10 @@
                     {% if c.text %}
                       <div class="mb-1">{{ c.text|linebreaks }}</div>
                     {% endif %}
-                    {% with catts=c.attachment_set.all %}
-                      {% if catts %}
+                    {% with attachments=c.attachment_set.all %}
+                      {% if attachments %}
                         <div class="mt-1">
-                          {% for a in catts %}
-                            {% if a.is_public or a.owner == user %}
-                              <div class="small mb-1">
-                                <span class="me-1">📎</span>
-                                {% if a.is_text_like %}
-                                  <a href="{% url 'learning_logs:preview_attachment' a.id %}">{{ a.original_name }}</a>
-                                {% else %}
-                                  <a href="{{ a.file.url }}" target="_blank">{{ a.original_name }}</a>
-                                {% endif %}
-                              </div>
-                            {% endif %}
-                          {% endfor %}
+                          {% include 'learning_logs/_attachments_list.html' with attachments=attachments parent_owner=entry.owner %}
                         </div>
                       {% endif %}
                     {% endwith %}
@@ -205,3 +136,12 @@
   {% endfor %}
 
 {% endblock content %}
+
+{% block extra_head %}
+  <style>
+    .ll-attachment-item:last-child{border-bottom:0}
+    .ll-attach-icon{width:20px}
+  </style>
+  {% load static %}
+  <script src="{% static 'js/attachments.js' %}" defer></script>
+{% endblock %}

@@ -1,6 +1,6 @@
 server {
     listen 80;
-    server_name _;
+    server_name your.domain 112.126.73.13;  # 替换为你的域名和/或公网 IP
 
     # Static files served directly by Nginx
     location /static/ { alias /root/deploy_package/project/staticfiles/; }
@@ -12,4 +12,11 @@ server {
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
         proxy_set_header X-Forwarded-Proto $scheme;
     }
+}
+
+# 默认站点：丢弃那些 Host 不匹配的杂乱请求，避免打到 Django 报 DisallowedHost
+server {
+    listen 80 default_server;
+    server_name _;
+    return 444;
 }

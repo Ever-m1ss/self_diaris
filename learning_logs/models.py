@@ -1,4 +1,5 @@
 import mimetypes
+import os
 from pathlib import Path
 
 from django.conf import settings
@@ -58,14 +59,32 @@ class Comment(models.Model):
 
 
 def upload_to_attachment(instance, filename):
-    """根据归属（topic/entry/comment）决定存储子目录。"""
+    """根据归属（topic/entry/comment）决定存储子目录，
+    同时在归属目录下附加相对路径（如通过“上传文件夹”功能带来的子目录）。"""
+    # 清理潜在的目录穿越
+    def _safe_rel(p: str) -> str:
+        p = (p or '').replace('\\', '/').strip('/')
+        # 去掉 .. 等危险片段
+        parts = [seg for seg in p.split('/') if seg not in ('', '.', '..')]
+        return '/'.join(parts)
+
+    base = "attachments/misc"
     if getattr(instance, 'entry_id', None):
-        return f"attachments/entries/{instance.entry_id}/{filename}"
-    if getattr(instance, 'topic_id', None):
-        return f"attachments/topics/{instance.topic_id}/{filename}"
-    if getattr(instance, 'comment_id', None):
-        return f"attachments/comments/{instance.comment_id}/{filename}"
-    return f"attachments/misc/{filename}"
+        base = f"attachments/entries/{instance.entry_id}"
+    elif getattr(instance, 'topic_id', None):
+        base = f"attachments/topics/{instance.topic_id}"
+    elif getattr(instance, 'comment_id', None):
+        base = f"attachments/comments/{instance.comment_id}"
+
+    subdir = ''
+    rel = _safe_rel(getattr(instance, 'relative_path', '') or '')
+    if rel:
+        # 只取目录部分，文件名仍以上传的 filename 为准
+        rel_dir = _safe_rel(str(Path(rel).parent))
+        if rel_dir:
+            subdir = f"/{rel_dir}"
+
+    return f"{base}{subdir}/{filename}"
 
 
 class Attachment(models.Model):
@@ -77,6 +96,7 @@ class Attachment(models.Model):
     owner = models.ForeignKey(User, on_delete=models.CASCADE)
     file = models.FileField(upload_to=upload_to_attachment)
     original_name = models.CharField(max_length=255)
+    relative_path = models.CharField(max_length=500, blank=True, default='')
     content_type = models.CharField(max_length=100, blank=True)
     size = models.BigIntegerField(default=0)
     is_public = models.BooleanField(default=False)
@@ -88,6 +108,11 @@ class Attachment(models.Model):
     def save(self, *args, **kwargs):
         if self.file and not self.original_name:
             self.original_name = self.file.name
+        # 规范化 relative_path
+        if self.relative_path:
+            rp = self.relative_path.replace('\\', '/').strip('/')
+            parts = [seg for seg in rp.split('/') if seg not in ('', '.', '..')]
+            self.relative_path = '/'.join(parts)
         if self.file and not self.content_type:
             guessed, _ = mimetypes.guess_type(self.file.name)
             self.content_type = guessed or "application/octet-stream"

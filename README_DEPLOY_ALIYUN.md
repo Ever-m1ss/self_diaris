@@ -383,6 +383,7 @@ HTTP 反代示例：`ops/nginx.conf.example`
 
 ```
 sudo cp ops/nginx.conf.example /etc/nginx/conf.d/diary.conf
+sudo sed -i 's/your.domain/你的域名/g' /etc/nginx/conf.d/diary.conf
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
@@ -390,6 +391,7 @@ HTTPS 示例：`ops/nginx-ssl.conf.example`（需要你把证书放到 `/etc/ngi
 
 ```
 sudo cp ops/nginx-ssl.conf.example /etc/nginx/conf.d/diary-ssl.conf
+sudo sed -i 's/your.domain/你的域名/g' /etc/nginx/conf.d/diary-ssl.conf
 sudo nginx -t && sudo systemctl reload nginx
 ```
 
@@ -404,4 +406,12 @@ sudo nginx -t && sudo systemctl reload nginx
 - `CSRF_COOKIE_SECURE=true`、`SESSION_COOKIE_SECURE=true`
 
 应用 .env 后重启服务：`sudo systemctl restart diary.service`。
+
+### F. 解决 DisallowedHost 提示
+
+若在 `journalctl -u diary.service` 看到 `Invalid HTTP_HOST header`：
+1. 访问来源非你配置的域名/IP（可能是机器人或第三方引用图片）
+2. 在 `.env` 的 `ALLOWED_HOSTS_EXTRA` 加入域名/IP；若是无关垃圾请求则无需加入。
+3. 使用本文示例中 Nginx 默认站点 `return 444;` 可以直接丢弃未知 Host，避免 Django 报错。
+
 

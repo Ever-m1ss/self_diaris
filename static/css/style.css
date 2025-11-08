@@ -479,4 +479,15 @@ body.home-page::after {
         .list-group-item { border-radius: 12px; }
     }
 
+    /* ---- Attachments (GitHub style list) ---- */
+    .ll-attachment-list { margin:0; padding:0; }
+    .ll-attachment-item { transition: background .18s ease; }
+    .ll-attachment-item:last-child { border-bottom:0; }
+    .ll-attach-icon { width:20px; font-size:1.1rem; }
+    .ll-attachment-item:hover { background: rgba(255,255,255,0.55); }
+    .ll-attachments.ll-drag-over { outline:2px dashed var(--brand); outline-offset:4px; background:rgba(37,99,235,0.08); border-radius:8px; }
+    .ll-attachment-item .fw-semibold a { text-decoration:none; }
+    .ll-attachment-item .fw-semibold a:hover { text-decoration:underline; }
+
+
 
