@@ -17,7 +17,7 @@
       <span class="flex-grow-1">{{ name }}</span>
       <span class="text-muted small ms-2 ll-folder-meta">文件夹</span>
     </div>
-    <div class="list-group list-group-flush ms-4 ll-folder-children d-none">
+    <div class="list-group list-group-flush ms-4 ll-folder-children d-none mb-2">
       {% include 'learning_logs/_attachment_tree.html' with tree=subtree parent_owner=parent_owner %}
     </div>
   {% endfor %}

@@ -189,7 +189,7 @@
     meta.textContent='文件夹';
     row.appendChild(meta);
     const children=document.createElement('div');
-    children.className='list-group list-group-flush ms-4 ll-folder-children d-none';
+    children.className='list-group list-group-flush ms-4 ll-folder-children d-none mb-2';
     return {row,children};
   }
   // 确保路径上所有文件夹节点存在，返回最终子容器（用于放文件）
