@@ -52,8 +52,8 @@
     item.appendChild(icon);
 
   const link = document.createElement('a');
-  // 统一通过后端下载端点，避免直接走媒体 URL 引发 404 或缺少下载头
-  link.href = `/attachments/download/${a.id}/`;
+  // 文件名链接使用原始文件 URL，便于图片/文本类直接预览；下载按钮仍走专用端点
+  link.href = a.url;
     link.target = '_blank';
     link.className = 'flex-grow-1 text-decoration-none text-body';
     link.textContent = a.name;

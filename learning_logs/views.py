@@ -456,29 +456,39 @@ def preview_attachment(request, attachment_id):
 def download_attachment(request, attachment_id):
     """提供单个附件文件下载，带原始文件名；遵循与预览相同的权限规则。"""
     att = get_object_or_404(Attachment, id=attachment_id)
+    # 临时调试日志：定位不能下载的问题（仅在出问题阶段，后续可去掉）
+    import logging
+    log = logging.getLogger('learning_logs.download')
+    log.info('download_attachment start id=%s name=%s content_type=%s', att.id, att.original_name, att.content_type)
     entry = att.entry or (att.comment.entry if att.comment_id else None)
     topic = att.topic or (entry.topic if entry else None)
     if topic is None:
+        log.warning('download_attachment topic_missing id=%s', att.id)
         raise Http404
     # 权限校验（与 preview 基本一致）
     if topic.owner == request.user:
         pass
     else:
         if not topic.is_public:
+            log.warning('download_attachment topic_private id=%s user=%s', att.id, request.user)
             raise Http404
         if entry and not entry.is_public:
+            log.warning('download_attachment entry_private id=%s entry=%s user=%s', att.id, entry.id, request.user)
             raise Http404
         if not att.is_public and att.owner != request.user:
+            log.warning('download_attachment att_private id=%s owner=%s user=%s', att.id, att.owner_id, request.user.id)
             raise Http404
     f = att.file
     try:
         response = FileResponse(f.open('rb'))
     except Exception:
+        log.exception('download_attachment file_open_failed id=%s storage_name=%s', att.id, getattr(f, 'name', None))
         raise Http404
     # 设置文件名（处理非 ASCII）
     from urllib.parse import quote
     filename = att.original_name or 'download'
     response['Content-Disposition'] = "attachment; filename*=UTF-8''" + quote(filename)
+    log.info('download_attachment success id=%s filename=%s size=%s', att.id, filename, getattr(f, 'size', None))
     return response
 
 

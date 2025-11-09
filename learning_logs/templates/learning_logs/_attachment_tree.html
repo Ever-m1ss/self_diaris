@@ -37,7 +37,7 @@
 
       {% if allow_download %}
         {% if att.file %}
-          <a href="{% url 'learning_logs:download_attachment' att.id %}" class="flex-grow-1 text-decoration-none text-body">
+          <a href="{{ att.file.url }}" class="flex-grow-1 text-decoration-none text-body">
             {{ att.original_name|filename }}
           </a>
         {% else %}
