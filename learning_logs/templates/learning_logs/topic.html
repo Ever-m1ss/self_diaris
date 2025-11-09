@@ -28,7 +28,7 @@
       <h6 class="mb-2">日记本附件</h6>
       <div class="ll-attachments" data-parent-type="topic" data-parent-id="{{ topic.id }}"{% if user == topic.owner %} data-can-edit="1"{% endif %}>
         <div class="list-group list-group-flush ll-attach-list">
-          {% include 'learning_logs/_attachment_tree.html' with tree=topic.attachment_tree parent_owner=topic.owner base='' allow_modify=True %}
+          {% include 'learning_logs/_attachment_tree.html' with tree=topic.attachment_tree parent_owner=topic.owner base='' allow_modify=True allow_download=True %}
         </div>
         {% if user == topic.owner %}
           <div class="mt-2 d-flex gap-2 flex-wrap">
@@ -74,7 +74,7 @@
           <h6 class="mb-2">附件</h6>
           <div class="ll-attachments" data-parent-type="entry" data-parent-id="{{ entry.id }}">
             <div class="list-group list-group-flush ll-attach-list">
-              {% include 'learning_logs/_attachment_tree.html' with tree=attachment_tree parent_owner=entry.owner base='' allow_modify=False %}
+              {% include 'learning_logs/_attachment_tree.html' with tree=attachment_tree parent_owner=entry.owner base='' allow_modify=False allow_download=True %}
             </div>
           </div>
         {% endwith %}
