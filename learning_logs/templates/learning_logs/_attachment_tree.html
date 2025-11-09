@@ -36,15 +36,19 @@
       <img src="{% static att.original_name|icon_for %}" alt="file" class="ll-attach-icon me-2">
 
       {% if allow_download|default:True %}
-        <a href="{{ att.file.url }}" class="flex-grow-1 text-decoration-none text-body">
-          {{ att.original_name|filename }}
-        </a>
+        {% if att.file %}
+          <a href="{{ att.file.url }}" class="flex-grow-1 text-decoration-none text-body">
+            {{ att.original_name|filename }}
+          </a>
+        {% else %}
+          <span class="flex-grow-1 text-danger">(文件缺失) {{ att.original_name|filename }}</span>
+        {% endif %}
       {% else %}
         <span class="flex-grow-1">{{ att.original_name|filename }}</span>
       {% endif %}
       <span class="text-muted small me-3">{{ att.size|filesizeformat }}</span>
       {# 文件下载按钮（受 allow_download 控制） #}
-      {% if allow_download|default:True %}
+      {% if allow_download|default:True and att.file %}
         <a class="btn btn-sm btn-outline-secondary me-2" href="{{ att.file.url }}">下载</a>
       {% endif %}
       
