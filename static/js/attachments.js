@@ -147,14 +147,16 @@
   }
 
   function enhanceWrapper(wrapper){
-    const input = wrapper.querySelector('input[type=file]');
-    if(!input) return;
-    input.addEventListener('change', (e)=>{
-      const files = e.target.files;
-      if(files && files.length){
-        uploadBatch(wrapper, files);
-        input.value=''; // reset
-      }
+    const inputs = wrapper.querySelectorAll('input[type=file]');
+    if(!inputs || !inputs.length) return;
+    inputs.forEach((input)=>{
+      input.addEventListener('change', (e)=>{
+        const files = e.target.files;
+        if(files && files.length){
+          uploadBatch(wrapper, files);
+          input.value=''; // reset
+        }
+      });
     });
     // Drag & drop zone
     wrapper.classList.add('ll-attachments-enhanced');
