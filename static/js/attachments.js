@@ -89,7 +89,8 @@
     // Find the container for attachment items. It might be the wrapper itself
     // or a specific list inside it. Let's make it flexible.
     // The new structure uses the wrapper directly as the container for items.
-  const listContainer = wrapper;
+  // 优先使用统一的包裹容器（保证所有条目外框一致）
+  const listContainer = wrapper.querySelector('.ll-attach-list') || wrapper;
 
     const fd = new FormData();
     [...files].forEach((f,i)=>{
@@ -112,14 +113,20 @@
       const data = await resp.json();
       if(!data.ok) throw new Error('上传失败');
       // 简化处理：将新文件追加到容器（树状视图下一次刷新会重建层级）
-      data.files.forEach(f=>{ 
+      // 动态将文件插入对应的文件夹层级（无需刷新）
+      data.files.forEach(f=>{
         const newItem = buildItem(f);
-        // Find where to insert the new item. It should be before the upload input.
-        const inputContainer = wrapper.querySelector('.mt-2');
+        let targetContainer = listContainer;
+        if (f.relative_path && f.relative_path.includes('/')) {
+          // ensureFolderPath 期望传入包含文件名的完整路径，它内部会去掉最后一段作为文件夹链
+          targetContainer = ensureFolderPath(listContainer, f.relative_path) || listContainer;
+        }
+        // 如果目标是顶层并存在输入容器，则插入到输入容器之前；否则直接 append
+        const inputContainer = (targetContainer === listContainer) ? listContainer.querySelector('.mt-2') : null;
         if (inputContainer) {
-          listContainer.insertBefore(newItem, inputContainer);
+          targetContainer.insertBefore(newItem, inputContainer);
         } else {
-          listContainer.appendChild(newItem);
+          targetContainer.appendChild(newItem);
         }
       });
     }catch(err){
@@ -131,19 +138,93 @@
   async function deleteItem(id, btn){
     if(!confirm('确认删除该附件？')) return;
     btn.disabled = true;
-    try{
+    try {
       const resp = await fetch(`/attachments/delete/${id}/`, {
-        method:'POST',
-        headers:{'X-CSRFToken': csrftoken,'X-Requested-With':'XMLHttpRequest'}
+        method: 'POST',
+        headers: {'X-CSRFToken': csrftoken,'X-Requested-With':'XMLHttpRequest'}
       });
       if(!resp.ok){
         throw new Error(await resp.text() || resp.status);
       }
       const item = btn.closest('.ll-attachment-item');
       if(item) item.remove();
-    }catch(err){
-      alert('删除失败: '+err.message);
-    }finally{ btn.disabled=false; }
+    } catch(err) {
+      alert('删除失败: ' + err.message);
+    } finally {
+      btn.disabled = false;
+    }
+  }
+
+  // 图标地址辅助
+  function iconUrl(key){
+    if (window.LL_ICON_URLS && window.LL_ICON_URLS[key]) return window.LL_ICON_URLS[key];
+    const map = {
+      folder: '/static/img/icons/folder.svg',
+      caret_right: '/static/img/icons/caret-right.svg',
+      caret_down: '/static/img/icons/caret-down.svg'
+    };
+    return map[key] || '';
+  }
+  // 创建单个文件夹行 + 子容器
+  function createFolderRow(name){
+    const row = document.createElement('div');
+    row.className='list-group-item list-group-item-action d-flex align-items-center ll-attachment-item ll-folder-row collapsed';
+    row.dataset.folderName=name;
+    const caret=document.createElement('img');
+    caret.className='ll-caret-icon me-1';
+    caret.src=iconUrl('caret_right');
+    caret.alt='toggle';
+    row.appendChild(caret);
+    const folderIcon=document.createElement('img');
+    folderIcon.className='ll-attach-icon me-2';
+    folderIcon.src=iconUrl('folder');
+    folderIcon.alt='folder';
+    row.appendChild(folderIcon);
+    const span=document.createElement('span');
+    span.className='flex-grow-1';
+    span.textContent=name;
+    row.appendChild(span);
+    const meta=document.createElement('span');
+    meta.className='text-muted small ms-2 ll-folder-meta';
+    meta.textContent='文件夹';
+    row.appendChild(meta);
+    const children=document.createElement('div');
+    children.className='list-group list-group-flush ms-4 ll-folder-children d-none';
+    return {row,children};
+  }
+  // 确保路径上所有文件夹节点存在，返回最终子容器（用于放文件）
+  function ensureFolderPath(rootContainer, relPath){
+    const parts=(relPath||'').split('/').filter(Boolean);
+    if(!parts.length) return rootContainer;
+    // 最后一段是文件名，文件夹链是 slice(0,-1)
+    const chain=parts.slice(0,-1);
+    if(!chain.length) return rootContainer; // 没有文件夹
+    let container=rootContainer;
+    for(const name of chain){
+      let foundRow=null, foundChildren=null;
+      for(let el=container.firstElementChild; el; el=el.nextElementSibling){
+        if(el.classList && el.classList.contains('ll-folder-row') && el.dataset.folderName===name){
+          foundRow=el; foundChildren=el.nextElementSibling; break;
+        }
+      }
+      if(!foundRow){
+        const created=createFolderRow(name);
+        const inputContainer=rootContainer===container?rootContainer.querySelector('.mt-2'):null;
+        if(inputContainer){
+          container.insertBefore(created.row,inputContainer);
+          container.insertBefore(created.children,inputContainer);
+        }else{
+          container.appendChild(created.row);
+          container.appendChild(created.children);
+        }
+        // 保持新建文件夹默认折叠，不展开
+        container=created.children;
+      }else{
+        // 已存在也保持当前折叠状态
+        container=foundChildren || container;
+      }
+    }
+    return container;
   }
 
   function enhanceWrapper(wrapper){
