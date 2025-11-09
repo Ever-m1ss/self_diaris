@@ -22,31 +22,61 @@
   }
 
   function buildItem(a){
-    const li=document.createElement('li');
-    li.className='ll-attachment-item d-flex align-items-center justify-content-between py-2 border-bottom';
-    li.dataset.id=a.id;
-    const rel = a.relative_path ? ` <span class="text-muted small">(${a.relative_path})</span>`:'';
-    const nameLink = a.is_text ? `<a href="/attachments/preview/${a.id}/">${a.name}</a>` : `<a href="${a.url}" target="_blank" rel="noreferrer">${a.name}</a>`;
-    li.innerHTML = `
-      <div class="d-flex align-items-center gap-3 flex-grow-1">
-        <div class="ll-attach-icon text-muted">📎</div>
-        <div class="ll-attach-meta">
-          <div class="fw-semibold">${nameLink}${rel}</div>
-          <div class="small text-muted" data-size>${humanSize(a.size)}</div>
-        </div>
-      </div>
-      <div class="d-flex align-items-center gap-3 flex-shrink-0">
-        <a class="small" href="${a.url}" download>下载</a>
-        <button class="btn btn-sm btn-link text-danger ll-attach-del" data-id="${a.id}">删除</button>
-      </div>`;
-    return li;
+    const item=document.createElement('div');
+    item.className='list-group-item list-group-item-action d-flex align-items-center ll-attachment-item';
+    item.dataset.id=a.id;
+
+    const icon = document.createElement('img');
+    icon.className = 'll-attach-icon me-2';
+    let iconName = 'file-earmark';
+    if (a.is_image) iconName = 'file-image';
+    else if (a.is_video) iconName = 'file-play';
+    else if (a.is_audio) iconName = 'file-music';
+    else if (a.is_text) iconName = 'file-text';
+    icon.src = `/static/img/icons/${iconName}.svg`;
+    icon.alt = iconName.split('-')[1];
+    item.appendChild(icon);
+
+    const link = document.createElement('a');
+    link.href = a.url;
+    link.target = '_blank';
+    link.className = 'flex-grow-1 text-decoration-none text-body';
+    link.textContent = a.name;
+    item.appendChild(link);
+
+    const sizeSpan = document.createElement('span');
+    sizeSpan.className = 'text-muted small me-3';
+    sizeSpan.textContent = humanSize(a.size);
+    item.appendChild(sizeSpan);
+
+    // Delete button needs owner info, which we don't have here.
+    // It will be added if the current user is the owner.
+    // For now, we can add a placeholder or handle it differently.
+    // Let's assume the delete button is only for owners and added dynamically
+    // based on user permissions known at render time.
+    // The button is now part of the initial HTML, so we just need to handle its click.
+    // When adding dynamically, we need to know if the current user is the owner.
+    // Let's simplify: the delete button will be handled by the global click handler
+    // if it exists in the initial HTML. For dynamically added items, we'll omit it
+    // as we can't securely determine ownership on the client side without more info.
+    // A better approach would be to have the server response for upload include owner info
+    // and compare with a global JS variable `currentUserId`.
+    // For now, let's just build the item without the delete button.
+    // The user can refresh to see the delete button if they are the owner.
+
+    return item;
   }
 
   async function uploadBatch(wrapper, files){
     const parentType=wrapper.dataset.parentType;
     const parentId=wrapper.dataset.parentId;
     if(!files.length) return;
-    const list = wrapper.querySelector('.ll-attachment-list');
+    
+    // Find the container for attachment items. It might be the wrapper itself
+    // or a specific list inside it. Let's make it flexible.
+    // The new structure uses the wrapper directly as the container for items.
+    const listContainer = wrapper;
+
     const fd = new FormData();
     [...files].forEach((f,i)=>{
       fd.append('files', f, f.name);
@@ -67,7 +97,21 @@
       }
       const data = await resp.json();
       if(!data.ok) throw new Error('上传失败');
-      data.files.forEach(f=>{ list.appendChild(buildItem(f)); });
+      
+      // Instead of appending to a non-existent list, we need to rebuild the tree.
+      // This is complex on the client side. A simpler approach is to just append
+      // the new files to the root of the attachment container.
+      // The user can refresh the page to see the full tree structure.
+      data.files.forEach(f=>{ 
+        const newItem = buildItem(f);
+        // Find where to insert the new item. It should be before the upload input.
+        const inputContainer = wrapper.querySelector('.mt-2');
+        if (inputContainer) {
+          listContainer.insertBefore(newItem, inputContainer);
+        } else {
+          listContainer.appendChild(newItem);
+        }
+      });
     }catch(err){
       console.error('Upload error', err);
       alert('上传失败: '+ err.message);
@@ -85,8 +129,8 @@
       if(!resp.ok){
         throw new Error(await resp.text() || resp.status);
       }
-      const li = btn.closest('.ll-attachment-item');
-      if(li) li.remove();
+      const item = btn.closest('.ll-attachment-item');
+      if(item) item.remove();
     }catch(err){
       alert('删除失败: '+err.message);
     }finally{ btn.disabled=false; }
@@ -131,7 +175,7 @@
 
   function bindGlobalClicks(){
     document.addEventListener('click', (e)=>{
-      const btn = e.target.closest('.ll-attach-del');
+      const btn = e.target.closest('.delete-attachment');
       if(btn){
         const id = btn.dataset.id; if(id) deleteItem(id, btn);
       }

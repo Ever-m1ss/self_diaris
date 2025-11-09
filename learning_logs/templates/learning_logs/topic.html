@@ -27,9 +27,7 @@
     <div class="card-body">
       <h6 class="mb-2">日记本附件</h6>
       <div class="ll-attachments" data-parent-type="topic" data-parent-id="{{ topic.id }}">
-        {% with attachments=topic.attachment_set.all %}
-          {% include 'learning_logs/_attachments_list.html' with attachments=attachments parent_owner=topic.owner %}
-        {% endwith %}
+        {% include 'learning_logs/_attachment_tree.html' with tree=topic.attachment_tree parent_owner=topic.owner %}
         {% if user == topic.owner %}
           <div class="mt-2">
             <input class="form-control" type="file" multiple webkitdirectory directory>
@@ -143,5 +141,5 @@
     .ll-attach-icon{width:20px}
   </style>
   {% load static %}
-  <script src="{% static 'js/attachments.js' %}" defer></script>
+  <script src="{% static 'js/main.js' %}" defer></script>
 {% endblock %}

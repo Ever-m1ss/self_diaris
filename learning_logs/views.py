@@ -88,6 +88,9 @@ def topic(request, topic_name):
     for entry in entries:
         entry.attachment_tree = build_attachment_tree(entry.attachment_set.all())
 
+    # 为 topic 本身构建附件树
+    topic.attachment_tree = build_attachment_tree(topic.attachment_set.all())
+
     comment_form = CommentForm()
     context = {'topic': topic, 'entries': entries, 'comment_form': comment_form}
     return render(request, 'learning_logs/topic.html', context)
