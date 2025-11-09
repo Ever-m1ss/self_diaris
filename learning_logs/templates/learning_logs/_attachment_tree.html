@@ -17,7 +17,7 @@
       <span class="flex-grow-1">{{ name }}</span>
       <span class="text-muted small ms-2 ll-folder-meta">文件夹</span>
       {# 下载文件夹（受 allow_download 控制） #}
-      {% if allow_download|default:True %}
+      {% if allow_download %}
         <button type="button" class="btn btn-sm btn-outline-secondary ms-2 ll-folder-dl" data-folder-path="{{ base }}{{ name }}">下载</button>
       {% endif %}
   {% if allow_modify and user == parent_owner %}
@@ -35,7 +35,7 @@
     <div class="list-group-item list-group-item-action d-flex align-items-center ll-attachment-item">
       <img src="{% static att.original_name|icon_for %}" alt="file" class="ll-attach-icon me-2">
 
-      {% if allow_download|default:True %}
+      {% if allow_download %}
         {% if att.file %}
           <a href="{{ att.file.url }}" class="flex-grow-1 text-decoration-none text-body">
             {{ att.original_name|filename }}
@@ -48,13 +48,16 @@
       {% endif %}
       <span class="text-muted small me-3">{{ att.size|filesizeformat }}</span>
       {# 文件下载按钮（受 allow_download 控制） #}
-      {% if allow_download|default:True and att.file %}
+      {% if allow_download and att.file %}
         <a class="btn btn-sm btn-outline-secondary me-2" href="{{ att.file.url }}">下载</a>
       {% endif %}
       
-  {% if allow_modify and (user == parent_owner or user == att.owner) %}
+  {# 避免 smartif 解析括号导致 '(user' token，拆成嵌套条件 #}
+  {% if allow_modify %}
+    {% if user == parent_owner or user == att.owner %}
         <button class="btn btn-sm btn-outline-danger delete-attachment" data-id="{{ att.id }}" data-name="{{ att.original_name }}">删除</button>
-      {% endif %}
+    {% endif %}
+  {% endif %}
     </div>
   {% endfor %}
 {% endif %}
