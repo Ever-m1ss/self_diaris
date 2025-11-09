@@ -33,7 +33,21 @@
     else if (a.is_video) iconName = 'file-play';
     else if (a.is_audio) iconName = 'file-music';
     else if (a.is_text) iconName = 'file-text';
-    icon.src = `/static/img/icons/${iconName}.svg`;
+    // 使用后端注入的哈希化静态资源映射，避免 Manifest 模式下 404
+    if (window.LL_ICON_URLS) {
+      const map = {
+        'file-image': 'file_image',
+        'file-play': 'file_play',
+        'file-music': 'file_music',
+        'file-text': 'file_text',
+        'file-earmark': 'file_earmark'
+      };
+      const key = map[iconName] || 'file_earmark';
+      icon.src = window.LL_ICON_URLS[key] || window.LL_ICON_URLS.file_earmark;
+    } else {
+      // 开发模式降级为非哈希路径
+      icon.src = `/static/img/icons/${iconName}.svg`;
+    }
     icon.alt = iconName.split('-')[1];
     item.appendChild(icon);
 
@@ -75,7 +89,7 @@
     // Find the container for attachment items. It might be the wrapper itself
     // or a specific list inside it. Let's make it flexible.
     // The new structure uses the wrapper directly as the container for items.
-    const listContainer = wrapper;
+  const listContainer = wrapper;
 
     const fd = new FormData();
     [...files].forEach((f,i)=>{
@@ -97,11 +111,7 @@
       }
       const data = await resp.json();
       if(!data.ok) throw new Error('上传失败');
-      
-      // Instead of appending to a non-existent list, we need to rebuild the tree.
-      // This is complex on the client side. A simpler approach is to just append
-      // the new files to the root of the attachment container.
-      // The user can refresh the page to see the full tree structure.
+      // 简化处理：将新文件追加到容器（树状视图下一次刷新会重建层级）
       data.files.forEach(f=>{ 
         const newItem = buildItem(f);
         // Find where to insert the new item. It should be before the upload input.
