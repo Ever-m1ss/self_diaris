@@ -36,7 +36,7 @@
       <img src="{% static att.original_name|icon_for %}" alt="file" class="ll-attach-icon me-2">
 
       {% if allow_download|default:True %}
-        <a href="{% url 'learning_logs:download_attachment' att.id %}" class="flex-grow-1 text-decoration-none text-body">
+        <a href="{{ att.file.url }}" class="flex-grow-1 text-decoration-none text-body">
           {{ att.original_name|filename }}
         </a>
       {% else %}
@@ -45,7 +45,7 @@
       <span class="text-muted small me-3">{{ att.size|filesizeformat }}</span>
       {# 文件下载按钮（受 allow_download 控制） #}
       {% if allow_download|default:True %}
-        <a class="btn btn-sm btn-outline-secondary me-2" href="{% url 'learning_logs:download_attachment' att.id %}">下载</a>
+        <a class="btn btn-sm btn-outline-secondary me-2" href="{{ att.file.url }}">下载</a>
       {% endif %}
       
       {% if (allow_modify|default:True) and (user == parent_owner or user == att.owner) %}
