@@ -141,5 +141,16 @@
     .ll-attach-icon{width:20px}
   </style>
   {% load static %}
-  <script src="{% static 'js/main.js' %}" defer></script>
+  {# 为避免 Manifest 模式下硬编码 /static 路径导致找不到哈希文件，这里预先解析所有可能用到的图标地址供前端使用 #}
+  <script>
+    window.LL_ICON_URLS = {
+      folder: "{% static 'img/icons/folder.svg' %}",
+      file_image: "{% static 'img/icons/file-image.svg' %}",
+      file_play: "{% static 'img/icons/file-play.svg' %}",
+      file_music: "{% static 'img/icons/file-music.svg' %}",
+      file_text: "{% static 'img/icons/file-text.svg' %}",
+      file_earmark: "{% static 'img/icons/file-earmark.svg' %}",
+    };
+  </script>
+  <script src="{% static 'js/attachments.js' %}" defer></script>
 {% endblock %}
