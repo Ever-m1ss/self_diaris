@@ -7,6 +7,7 @@
   }
 {% endcomment %}
 {% load static %}
+{% load template_filters %}
 
 {% if tree.dirs %}
   {% for name, subtree in tree.dirs.items %}
@@ -50,4 +51,3 @@
 {% comment %}
   添加一个自定义过滤器来提取文件名
 {% endcomment %}
-{% load template_filters %}
