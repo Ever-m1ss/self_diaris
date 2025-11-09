@@ -21,16 +21,37 @@
       <form action="{% url 'learning_logs:edit_entry' entry.id %}" method='post' enctype="multipart/form-data" novalidate>
         {% csrf_token %}
         {% bootstrap_form form show_labels=True %}
-        <div class="mb-3">
-          <label class="form-label">追加附件（可选，可多选）</label>
-          <input class="form-control" type="file" name="attachments" multiple>
-          <div class="form-text">支持图片/音频/视频/文本等常见类型。</div>
-        </div>
+          <div class="mb-3">
+            <label class="form-label">追加附件（可选，可多选，支持文件夹）</label>
+            <input class="form-control" type="file" name="attachments" id="attachments" multiple webkitdirectory directory>
+            <div class="form-text">可选择多个文件或整个文件夹上传，层级将被保留。</div>
+          </div>
         {# 附件可见性继承所属日记设置，此处无需单独选择 #}
         <div class="d-flex justify-content-between mt-3">
           <a href="{% url 'learning_logs:topic' topic.text %}" class="btn btn-outline-primary">取消</a>
           <button type="submit" class="btn btn-primary">保存更改</button>
         </div>
+        <script>
+        (function(){
+          const file = document.getElementById('attachments');
+          if(!file) return;
+          file.addEventListener('change', ()=>{
+            document.querySelectorAll('input[name^="relative_path["]').forEach(n=>n.remove());
+            const form = file.closest('form');
+            if(!form) return;
+            [...file.files].forEach((f,i)=>{
+              const rel = f.webkitRelativePath || f.relativePath || '';
+              if(rel){
+                const hid = document.createElement('input');
+                hid.type = 'hidden';
+                hid.name = `relative_path[${i}]`;
+                hid.value = rel;
+                form.appendChild(hid);
+              }
+            });
+          });
+        })();
+        </script>
       </form>
     </div>
   </div>

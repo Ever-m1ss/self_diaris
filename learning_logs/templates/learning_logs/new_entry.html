@@ -21,9 +21,9 @@
         {% endif %}
         {% bootstrap_form form show_labels=True %}
         <div class="mb-3">
-          <label class="form-label">附件（可选，可多选）</label>
-          <input class="form-control" type="file" name="attachments" id="attachments" multiple>
-          <div class="form-text">支持图片/音频/视频/文本等常见类型。</div>
+          <label class="form-label">附件（可选，可多选，支持文件夹）</label>
+          <input class="form-control" type="file" name="attachments" id="attachments" multiple webkitdirectory directory>
+          <div class="form-text">可选择多个文件或整个文件夹上传，层级将被保留。</div>
         </div>
         {# 附件可见性继承所属日记设置，此处无需单独选择 #}
         <div class="d-flex justify-content-between mt-3">
@@ -45,6 +45,24 @@
         ta.addEventListener('input', update);
         file.addEventListener('change', update);
         update();
+
+        // 将相对路径映射写入表单，便于后端保存层级
+        file.addEventListener('change', ()=>{
+          // 清理旧的 hidden inputs
+          document.querySelectorAll('input[name^="relative_path["]').forEach(n=>n.remove());
+          const form = file.closest('form');
+          if(!form) return;
+          [...file.files].forEach((f,i)=>{
+            const rel = f.webkitRelativePath || f.relativePath || '';
+            if(rel){
+              const hid = document.createElement('input');
+              hid.type = 'hidden';
+              hid.name = `relative_path[${i}]`;
+              hid.value = rel;
+              form.appendChild(hid);
+            }
+          });
+        });
       })();
       </script>
     </div>

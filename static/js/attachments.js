@@ -195,5 +195,23 @@
   document.addEventListener('DOMContentLoaded', ()=>{
     document.querySelectorAll('.ll-attachments').forEach(enhanceWrapper);
     bindGlobalClicks();
+    // 目录展开/折叠逻辑（GitHub 风格）
+    document.addEventListener('click', (e) => {
+      const row = e.target.closest('.ll-folder-row');
+      if (!row) return;
+      const children = row.nextElementSibling;
+      if (!children || !children.classList.contains('ll-folder-children')) return;
+      const caret = row.querySelector('.ll-caret-icon');
+      const collapsed = row.classList.contains('collapsed');
+      if (collapsed) {
+        row.classList.remove('collapsed');
+        children.classList.remove('d-none');
+        if (caret && window.LL_ICON_URLS) caret.src = window.LL_ICON_URLS.caret_down;
+      } else {
+        row.classList.add('collapsed');
+        children.classList.add('d-none');
+        if (caret && window.LL_ICON_URLS) caret.src = window.LL_ICON_URLS.caret_right;
+      }
+    });
   });
 })();

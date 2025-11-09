@@ -139,6 +139,11 @@
   <style>
     .ll-attachment-item:last-child{border-bottom:0}
     .ll-attach-icon{width:20px}
+    .ll-folder-row{cursor:pointer; user-select:none;}
+    .ll-folder-row.collapsed + .ll-folder-children{display:none;}
+    .ll-caret-icon{width:12px; opacity:.7;}
+    .ll-folder-row:hover{background:rgba(255,255,255,.05);}
+    .ll-folder-children .ll-folder-children{margin-left:.5rem;}
   </style>
   {% load static %}
   {# 为避免 Manifest 模式下硬编码 /static 路径导致找不到哈希文件，这里预先解析所有可能用到的图标地址供前端使用 #}
@@ -150,6 +155,8 @@
       file_music: "{% static 'img/icons/file-music.svg' %}",
       file_text: "{% static 'img/icons/file-text.svg' %}",
       file_earmark: "{% static 'img/icons/file-earmark.svg' %}",
+      caret_right: "{% static 'img/icons/caret-right.svg' %}",
+      caret_down: "{% static 'img/icons/caret-down.svg' %}",
     };
   </script>
   <script src="{% static 'js/attachments.js' %}" defer></script>

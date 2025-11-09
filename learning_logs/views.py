@@ -7,6 +7,7 @@ from django.conf import settings
 from django.core.files.uploadedfile import UploadedFile
 
 from .models import Topic, Entry, Comment, Attachment
+import re
 from .forms import TopicForm, EntryForm, CommentForm
 
 
@@ -132,6 +133,8 @@ def new_entry(request, topic_id):
         # POST data submitted; process data.
         form = EntryForm(data=request.POST)
         files = request.FILES.getlist('attachments')
+        # 支持文件夹上传：前端通过 hidden input 提交 relative_path[index]
+        rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
         if form.is_valid():
             text_val = (form.cleaned_data.get('text') or '').strip()
             # 校验：正文与附件不可同时为空
@@ -143,7 +146,7 @@ def new_entry(request, topic_id):
                 new_entry.owner = request.user
                 new_entry.save()
                 # 附件（可选，批量）
-                _save_attachments_from_request(files, request.user, entry=new_entry)
+                _save_attachments_from_request(files, request.user, entry=new_entry, relative_paths=rel_paths)
                 return redirect('learning_logs:topic', topic_name=topic.text)
 
     # Display a blank or invalid form.
@@ -167,9 +170,10 @@ def edit_entry(request, entry_id):
         form = EntryForm(instance=entry, data=request.POST)
         if form.is_valid():
             entry = form.save()
-            # 可在编辑时追加附件
+            # 可在编辑时追加附件（含文件夹）
             files = request.FILES.getlist('attachments')
-            _save_attachments_from_request(files, request.user, entry=entry)
+            rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
+            _save_attachments_from_request(files, request.user, entry=entry, relative_paths=rel_paths)
             return redirect('learning_logs:topic', topic_name=topic.text)
 
     context = {'entry': entry, 'topic': topic, 'form': form}
@@ -209,6 +213,30 @@ def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comm
         # relative_paths 与 files 顺序对齐
         for idx, rp in relative_paths.items():
             rel_map[int(idx)] = rp
+
+    def _sanitize_rel_path(p: str) -> str:
+        """清洗相对路径，确保：
+        - 使用正斜杠；
+        - 去掉前导斜杠，禁止绝对路径；
+        - 折叠 . 与 ..，移除空段；
+        - 限制长度，避免异常数据；
+        """
+        try:
+            p = (p or '').replace('\\', '/').strip()
+            p = p.lstrip('/')
+            parts = []
+            for seg in p.split('/'):
+                if not seg or seg == '.':
+                    continue
+                if seg == '..':
+                    if parts:
+                        parts.pop()
+                    continue
+                parts.append(seg)
+            safe = '/'.join(parts)
+            return safe[:255]
+        except Exception:
+            return ''
     for idx, f in enumerate(files):
         if not isinstance(f, UploadedFile):
             continue
@@ -222,7 +250,9 @@ def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comm
         att = Attachment(owner=owner, topic=topic, entry=entry, comment=comment, file=f, is_public=derived_public)
         att.original_name = f.name
         if rel_map.get(idx):
-            att.relative_path = rel_map[idx]
+            _rp = _sanitize_rel_path(rel_map[idx])
+            if _rp:
+                att.relative_path = _rp
         att.save()
         created.append(att)
     return created
