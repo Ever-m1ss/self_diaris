@@ -1,0 +1,53 @@
+{% comment %}
+  可递归的模板，用于渲染附件树。
+  接收一个 `tree` 字典，其结构为：
+  {
+    'dirs': {'dirname': { ... another tree ... }},
+    'files': [attachment1, attachment2]
+  }
+{% endcomment %}
+{% load static %}
+
+{% if tree.dirs %}
+  {% for name, subtree in tree.dirs.items %}
+    <div class="list-group-item list-group-item-action d-flex align-items-center ll-attachment-item">
+      <img src="{% static 'img/icons/folder.svg' %}" alt="folder" class="ll-attach-icon me-2">
+      <span class="flex-grow-1">{{ name }}</span>
+    </div>
+    <div class="list-group list-group-flush ms-4">
+      {% include 'learning_logs/_attachment_tree.html' with tree=subtree parent_owner=parent_owner %}
+    </div>
+  {% endfor %}
+{% endif %}
+
+{% if tree.files %}
+  {% for att in tree.files %}
+    <div class="list-group-item list-group-item-action d-flex align-items-center ll-attachment-item">
+      {% if att.is_image %}
+        <img src="{% static 'img/icons/file-image.svg' %}" alt="image" class="ll-attach-icon me-2">
+      {% elif att.is_video %}
+        <img src="{% static 'img/icons/file-play.svg' %}" alt="video" class="ll-attach-icon me-2">
+      {% elif att.is_audio %}
+        <img src="{% static 'img/icons/file-music.svg' %}" alt="audio" class="ll-attach-icon me-2">
+      {% elif att.is_text_like %}
+        <img src="{% static 'img/icons/file-text.svg' %}" alt="text" class="ll-attach-icon me-2">
+      {% else %}
+        <img src="{% static 'img/icons/file-earmark.svg' %}" alt="file" class="ll-attach-icon me-2">
+      {% endif %}
+
+      <a href="{{ att.file.url }}" target="_blank" class="flex-grow-1 text-decoration-none text-body">
+        {{ att.original_name|filename }}
+      </a>
+      <span class="text-muted small me-3">{{ att.size|filesizeformat }}</span>
+      
+      {% if user == parent_owner or user == att.owner %}
+        <button class="btn btn-sm btn-outline-danger delete-attachment" data-id="{{ att.id }}" data-name="{{ att.original_name }}">删除</button>
+      {% endif %}
+    </div>
+  {% endfor %}
+{% endif %}
+
+{% comment %}
+  添加一个自定义过滤器来提取文件名
+{% endcomment %}
+{% load template_filters %}

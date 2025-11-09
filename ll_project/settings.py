@@ -39,11 +39,7 @@ DEBUG = os.getenv('DEBUG', 'True').lower() in ('1', 'true', 'yes')
 
 # 动态允许主机：Render 使用 RENDER_EXTERNAL_HOSTNAME；阿里云 ECS/容器需通过环境变量 ALLOWED_HOSTS_EXTRA 指定公网域名/IP
 _render_host = os.getenv('RENDER_EXTERNAL_HOSTNAME')
-ALLOWED_HOSTS = [
-    'localhost',
-    '127.0.0.1',
-    '112.126.73.13',
-] + ([_render_host] if _render_host else [])
+ALLOWED_HOSTS = ['localhost', '127.0.0.1'] + ([_render_host] if _render_host else [])
 # 额外主机（逗号分隔），例如你的阿里云公网 IP 或绑定的域名 diary.example.com
 _extra_hosts = os.getenv('ALLOWED_HOSTS_EXTRA', '')
 if _extra_hosts:

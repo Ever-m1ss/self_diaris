@@ -48,6 +48,31 @@ def topics(request):
     context = {'topics': topics}
     return render(request, 'learning_logs/topics.html', context)
 
+def build_attachment_tree(attachments):
+    """将扁平的附件列表构造成树状结构（字典）。"""
+    tree = {}
+    for att in attachments:
+        # 使用 original_name 以防 relative_path 为空
+        path = att.relative_path or att.original_name
+        parts = path.split('/')
+        
+        current_level = tree
+        for i, part in enumerate(parts):
+            if i == len(parts) - 1:
+                # 文件节点
+                if 'files' not in current_level:
+                    current_level['files'] = []
+                current_level['files'].append(att)
+            else:
+                # 目录节点
+                if 'dirs' not in current_level:
+                    current_level['dirs'] = {}
+                if part not in current_level['dirs']:
+                    current_level['dirs'][part] = {}
+                current_level = current_level['dirs'][part]
+    return tree
+
+
 @login_required
 def topic(request, topic_name):
     """按名称展示单个日记本及其日记，遵循可见性规则。"""
@@ -58,6 +83,10 @@ def topic(request, topic_name):
         entries = topic.entry_set.order_by('-date_added')
     else:
         entries = topic.entry_set.filter(Q(is_public=True) | Q(owner=request.user)).order_by('-date_added')
+
+    # 为每个 entry 构建附件树
+    for entry in entries:
+        entry.attachment_tree = build_attachment_tree(entry.attachment_set.all())
 
     comment_form = CommentForm()
     context = {'topic': topic, 'entries': entries, 'comment_form': comment_form}

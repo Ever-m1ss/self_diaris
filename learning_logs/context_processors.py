@@ -1,5 +1,4 @@
 import random
-import logging
 
 from django.templatetags.static import static
 from django.conf import settings
@@ -24,7 +23,6 @@ AUTH_BACKGROUNDS = ['img/auth/auth1.jpg']
 # 允许通过环境变量覆盖背景图片（支持绝对 URL 或静态路径）
 import os
 CUSTOM_BG_IMAGE = os.getenv('BACKGROUND_IMAGE', '').strip()
-logger = logging.getLogger(__name__)
 
 
 def _resolve_path(path: str) -> str:
@@ -56,8 +54,6 @@ def background_image(request):
                 found = None
             if found:
                 return {'background_image_url': _resolve_path(CUSTOM_BG_IMAGE)}
-            else:
-                logger.warning("BACKGROUND_IMAGE static path not found: %s; falling back to defaults", CUSTOM_BG_IMAGE)
             # 否则继续走默认选择逻辑
     if path.startswith('/accounts/login') or path.startswith('/accounts/register'):
         url = _choose(AUTH_BACKGROUNDS)

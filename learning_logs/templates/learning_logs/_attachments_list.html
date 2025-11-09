@@ -1,3 +1,10 @@
+{#
+  Reusable attachments list.
+  Expects:
+    - attachments: iterable of Attachment
+    - parent_owner: User (owner of the parent object), used to decide delete visibility
+  Uses global `user` from context.
+#}
 <ul class="ll-attachment-list list-unstyled mb-0">
   {% for a in attachments %}
     {% if a.is_public or a.owner == user or user == parent_owner %}

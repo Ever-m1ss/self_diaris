@@ -63,11 +63,11 @@
         {{ entry.text|linebreaks }}
 
         {# 附件：紧随正文显示 #}
-        {% with attachments=entry.attachment_set.all %}
+        {% with attachments=entry.attachment_set.all attachment_tree=entry.attachment_tree %}
           <hr>
           <h6 class="mb-2">附件</h6>
           <div class="ll-attachments" data-parent-type="entry" data-parent-id="{{ entry.id }}">
-            {% include 'learning_logs/_attachments_list.html' with attachments=attachments parent_owner=entry.owner %}
+            {% include 'learning_logs/_attachment_tree.html' with tree=attachment_tree parent_owner=entry.owner %}
             {% if user == entry.owner %}
               <div class="mt-2">
                 <input class="form-control" type="file" multiple webkitdirectory directory>
