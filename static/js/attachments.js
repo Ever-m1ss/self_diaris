@@ -58,10 +58,16 @@
     link.textContent = a.name;
     item.appendChild(link);
 
-    const sizeSpan = document.createElement('span');
-    sizeSpan.className = 'text-muted small me-3';
-    sizeSpan.textContent = humanSize(a.size);
-    item.appendChild(sizeSpan);
+  const sizeSpan = document.createElement('span');
+  sizeSpan.className = 'text-muted small me-3';
+  sizeSpan.textContent = humanSize(a.size);
+  item.appendChild(sizeSpan);
+  // 下载按钮
+  const dl = document.createElement('a');
+  dl.className='btn btn-sm btn-outline-secondary me-2';
+  dl.textContent='下载';
+  dl.href='/attachments/download/'+a.id+'/';
+  item.appendChild(dl);
 
     // Delete button needs owner info, which we don't have here.
     // It will be added if the current user is the owner.
@@ -188,6 +194,16 @@
     meta.className='text-muted small ms-2 ll-folder-meta';
     meta.textContent='文件夹';
     row.appendChild(meta);
+    // 如果父容器允许编辑（ll-attachments 有 data-can-edit），添加删除按钮
+    const canEdit = row.closest('.ll-attachments')?.dataset.canEdit;
+    if (canEdit) {
+      const delBtn = document.createElement('button');
+      delBtn.type='button';
+      delBtn.className='btn btn-sm btn-outline-danger ms-2 ll-folder-del';
+      delBtn.textContent='删除';
+      // folder-path 在 ensureFolderPath 中再赋值（因为需要构造累计路径）
+      row.appendChild(delBtn);
+    }
     const children=document.createElement('div');
     children.className='list-group list-group-flush ms-4 ll-folder-children d-none mb-2';
     return {row,children};
@@ -200,6 +216,7 @@
     const chain=parts.slice(0,-1);
     if(!chain.length) return rootContainer; // 没有文件夹
     let container=rootContainer;
+    let accumulated='';
     for(const name of chain){
       let foundRow=null, foundChildren=null;
       for(let el=container.firstElementChild; el; el=el.nextElementSibling){
@@ -217,9 +234,17 @@
           container.appendChild(created.row);
           container.appendChild(created.children);
         }
+        accumulated = accumulated ? (accumulated + '/' + name) : name;
+        created.row.dataset.folderPath = accumulated;
+        const delBtn = created.row.querySelector('.ll-folder-del');
+        if(delBtn){ delBtn.dataset.folderPath = accumulated; }
         // 保持新建文件夹默认折叠，不展开
         container=created.children;
       }else{
+        accumulated = accumulated ? (accumulated + '/' + name) : name;
+        foundRow.dataset.folderPath = accumulated;
+        const delBtn = foundRow.querySelector('.ll-folder-del');
+        if(delBtn){ delBtn.dataset.folderPath = accumulated; }
         // 已存在也保持当前折叠状态
         container=foundChildren || container;
       }
@@ -272,6 +297,51 @@
       if(btn){
         const id = btn.dataset.id; if(id) deleteItem(id, btn);
       }
+      const folderDel = e.target.closest('.ll-folder-del');
+      if(folderDel){
+        const wrapper = folderDel.closest('.ll-attachments');
+        if(!wrapper) return;
+        const parentType = wrapper.dataset.parentType;
+        const parentId = wrapper.dataset.parentId;
+        const folderPath = folderDel.dataset.folderPath;
+        if(!folderPath) return;
+        if(!confirm(`确认删除文件夹及其所有文件？\n${folderPath}`)) return;
+        const fd = new FormData();
+        fd.append('parent_type', parentType);
+        fd.append('parent_id', parentId);
+        fd.append('folder_path', folderPath);
+        fetch('/attachments/delete_folder/', {
+          method:'POST',
+          headers:{'X-CSRFToken': csrftoken,'X-Requested-With':'XMLHttpRequest'},
+          body: fd
+        }).then(r=>r.json()).then(res=>{
+          if(!res.ok){ alert('删除失败: '+(res.error||'未知错误')); return; }
+          // 移除该文件夹行与其子内容容器
+          const row = folderDel.closest('.ll-folder-row');
+          if(row){
+            const children = row.nextElementSibling;
+            if(children && children.classList.contains('ll-folder-children')){
+              children.remove();
+            }
+            row.remove();
+          }
+        }).catch(err=>{
+          alert('删除失败: '+ err.message);
+        });
+      }
+      const folderDl = e.target.closest('.ll-folder-dl');
+      if(folderDl){
+        e.stopPropagation();
+        const wrapper = folderDl.closest('.ll-attachments');
+        if(!wrapper) return;
+        const parentType = wrapper.dataset.parentType;
+        const parentId = wrapper.dataset.parentId;
+        const folderPath = folderDl.dataset.folderPath;
+        if(!folderPath) return;
+        // 直接跳转下载链接
+        const url = `/attachments/download_folder/?parent_type=${encodeURIComponent(parentType)}&parent_id=${encodeURIComponent(parentId)}&folder_path=${encodeURIComponent(folderPath)}`;
+        window.location.href = url;
+      }
     });
   }
 
@@ -282,6 +352,8 @@
     document.addEventListener('click', (e) => {
       const row = e.target.closest('.ll-folder-row');
       if (!row) return;
+      // 如果点击的是操作按钮（删除/下载）不要触发折叠
+      if (e.target.closest('.ll-folder-del') || e.target.closest('.ll-folder-dl')) return;
       const children = row.nextElementSibling;
       if (!children || !children.classList.contains('ll-folder-children')) return;
       const caret = row.querySelector('.ll-caret-icon');

@@ -21,35 +21,23 @@
       <form action="{% url 'learning_logs:edit_entry' entry.id %}" method='post' enctype="multipart/form-data" novalidate>
         {% csrf_token %}
         {% bootstrap_form form show_labels=True %}
-          <div class="mb-3">
-            <label class="form-label">追加附件（可选，可多选，支持文件夹）</label>
-            <input class="form-control" type="file" name="attachments" id="attachments" multiple webkitdirectory directory>
+        {# 编辑页：按新需求禁用上传 / 删除 / 下载；仅静态展示 #}
+        <div class="mb-3">
+          <h6 class="mb-2">已有附件（只读）</h6>
+          <div class="ll-attachments" data-parent-type="entry" data-parent-id="{{ entry.id }}">
+            <div class="list-group list-group-flush ll-attach-list">
+              {% include 'learning_logs/_attachment_tree.html' with tree=entry.attachment_tree parent_owner=entry.owner base='' allow_modify=False allow_download=False %}
+            </div>
           </div>
+          <div class="form-text text-muted">当前策略：编辑日记时不可上传 / 删除 / 下载附件。</div>
+        </div>
         {# 附件可见性继承所属日记设置，此处无需单独选择 #}
         <div class="d-flex justify-content-between mt-3">
           <a href="{% url 'learning_logs:topic' topic.text %}" class="btn btn-outline-primary">取消</a>
           <button type="submit" class="btn btn-primary">保存更改</button>
         </div>
         <script>
-        (function(){
-          const file = document.getElementById('attachments');
-          if(!file) return;
-          file.addEventListener('change', ()=>{
-            document.querySelectorAll('input[name^="relative_path["]').forEach(n=>n.remove());
-            const form = file.closest('form');
-            if(!form) return;
-            [...file.files].forEach((f,i)=>{
-              const rel = f.webkitRelativePath || f.relativePath || '';
-              if(rel){
-                const hid = document.createElement('input');
-                hid.type = 'hidden';
-                hid.name = `relative_path[${i}]`;
-                hid.value = rel;
-                form.appendChild(hid);
-              }
-            });
-          });
-        })();
+        // 编辑页附件交互已禁用
         </script>
       </form>
     </div>
@@ -57,3 +45,29 @@
 </div>
 
 {% endblock content %}
+
+{% block extra_head %}
+  {% load static %}
+  <style>
+    .ll-attachment-item:last-child{border-bottom:0}
+    .ll-attach-icon{width:20px}
+    .ll-folder-row{cursor:pointer; user-select:none;}
+    .ll-folder-row.collapsed + .ll-folder-children{display:none;}
+    .ll-caret-icon{width:12px; opacity:.7;}
+    .ll-folder-row:hover{background:rgba(255,255,255,.05);}
+    .ll-folder-children .ll-folder-children{margin-left:.5rem;}
+  </style>
+  <script>
+    window.LL_ICON_URLS = {
+      folder: "{% static 'img/icons/folder.svg' %}",
+      file_image: "{% static 'img/icons/file-image.svg' %}",
+      file_play: "{% static 'img/icons/file-play.svg' %}",
+      file_music: "{% static 'img/icons/file-music.svg' %}",
+      file_text: "{% static 'img/icons/file-text.svg' %}",
+      file_earmark: "{% static 'img/icons/file-earmark.svg' %}",
+      caret_right: "{% static 'img/icons/caret-right.svg' %}",
+      caret_down: "{% static 'img/icons/caret-down.svg' %}",
+    };
+  </script>
+  {# 只读展示不加载交互脚本 #}
+{% endblock %}

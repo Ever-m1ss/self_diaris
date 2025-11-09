@@ -20,9 +20,15 @@
           </div>
         {% endif %}
         {% bootstrap_form form show_labels=True %}
+        {# 附件在本需求下：新建页不可上传 / 不可删除 / 不可下载；仅静态展示日记本已有附件（无交互） #}
         <div class="mb-3">
-          <label class="form-label">附件（可选，可多选，支持文件夹）</label>
-          <input class="form-control" type="file" name="attachments" id="attachments" multiple webkitdirectory directory>
+          <h6 class="mb-2">日记本附件（只读）</h6>
+          <div class="ll-attachments" data-parent-type="topic" data-parent-id="{{ topic.id }}">
+            <div class="list-group list-group-flush ll-attach-list">
+              {% include 'learning_logs/_attachment_tree.html' with tree=topic.attachment_tree parent_owner=topic.owner base='' allow_modify=False allow_download=False %}
+            </div>
+          </div>
+          <div class="form-text text-muted">当前策略：创建日记时不可上传 / 删除 / 下载附件。若需新增附件，请先保存后调整策略再开放。</div>
         </div>
         {# 附件可见性继承所属日记设置，此处无需单独选择 #}
         <div class="d-flex justify-content-between mt-3">
@@ -33,35 +39,14 @@
       <script>
       (function(){
         const ta = document.getElementById('id_text');
-        const file = document.getElementById('attachments');
         const btn = document.getElementById('submitBtn');
-        if(!ta || !file || !btn) return;
+        if(!ta || !btn) return;
         function update(){
           const hasText = (ta.value || '').trim().length > 0;
-          const hasFile = file.files && file.files.length > 0;
-          btn.disabled = !(hasText || hasFile);
+          btn.disabled = !hasText;
         }
         ta.addEventListener('input', update);
-        file.addEventListener('change', update);
         update();
-
-        // 将相对路径映射写入表单，便于后端保存层级
-        file.addEventListener('change', ()=>{
-          // 清理旧的 hidden inputs
-          document.querySelectorAll('input[name^="relative_path["]').forEach(n=>n.remove());
-          const form = file.closest('form');
-          if(!form) return;
-          [...file.files].forEach((f,i)=>{
-            const rel = f.webkitRelativePath || f.relativePath || '';
-            if(rel){
-              const hid = document.createElement('input');
-              hid.type = 'hidden';
-              hid.name = `relative_path[${i}]`;
-              hid.value = rel;
-              form.appendChild(hid);
-            }
-          });
-        });
       })();
       </script>
     </div>
@@ -69,3 +54,29 @@
 </div>
 
 {% endblock content %}
+
+{% block extra_head %}
+  {% load static %}
+  <style>
+    .ll-attachment-item:last-child{border-bottom:0}
+    .ll-attach-icon{width:20px}
+    .ll-folder-row{cursor:pointer; user-select:none;}
+    .ll-folder-row.collapsed + .ll-folder-children{display:none;}
+    .ll-caret-icon{width:12px; opacity:.7;}
+    .ll-folder-row:hover{background:rgba(255,255,255,.05);}
+    .ll-folder-children .ll-folder-children{margin-left:.5rem;}
+  </style>
+  <script>
+    window.LL_ICON_URLS = {
+      folder: "{% static 'img/icons/folder.svg' %}",
+      file_image: "{% static 'img/icons/file-image.svg' %}",
+      file_play: "{% static 'img/icons/file-play.svg' %}",
+      file_music: "{% static 'img/icons/file-music.svg' %}",
+      file_text: "{% static 'img/icons/file-text.svg' %}",
+      file_earmark: "{% static 'img/icons/file-earmark.svg' %}",
+      caret_right: "{% static 'img/icons/caret-right.svg' %}",
+      caret_down: "{% static 'img/icons/caret-down.svg' %}",
+    };
+  </script>
+  {# 只读展示，不加载交互脚本 #}
+{% endblock %}

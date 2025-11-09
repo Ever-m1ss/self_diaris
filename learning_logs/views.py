@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, JsonResponse, HttpResponseBadRequest
+from django.http import FileResponse
 from django.db.models import Q
 from django.views.decorators.http import require_POST
 from django.conf import settings
@@ -9,6 +10,7 @@ from django.core.files.uploadedfile import UploadedFile
 from .models import Topic, Entry, Comment, Attachment
 import re
 from .forms import TopicForm, EntryForm, CommentForm
+from django.db import transaction
 
 
 def index(request):
@@ -150,6 +152,11 @@ def new_entry(request, topic_id):
                 return redirect('learning_logs:topic', topic_name=topic.text)
 
     # Display a blank or invalid form.
+    # 构建日记本附件树供页面展示
+    try:
+        topic.attachment_tree = build_attachment_tree(topic.attachment_set.all())
+    except Exception:
+        topic.attachment_tree = {}
     context = {'topic': topic, 'form': form}
     return render(request, 'learning_logs/new_entry.html', context)
 
@@ -176,6 +183,11 @@ def edit_entry(request, entry_id):
             _save_attachments_from_request(files, request.user, entry=entry, relative_paths=rel_paths)
             return redirect('learning_logs:topic', topic_name=topic.text)
 
+    # 构建本日记附件树供页面展示
+    try:
+        entry.attachment_tree = build_attachment_tree(entry.attachment_set.all())
+    except Exception:
+        entry.attachment_tree = {}
     context = {'entry': entry, 'topic': topic, 'form': form}
     return render(request, 'learning_logs/edit_entry.html', context)
 
@@ -281,6 +293,62 @@ def delete_attachment(request, attachment_id):
 
 @login_required
 @require_POST
+def delete_folder_api(request):
+    """删除某个归属对象下指定 relative_path 前缀对应的所有附件。
+    接收参数：
+      parent_type: topic|entry|comment
+      parent_id: 数字
+      folder_path: 相对路径（不以 / 开头，末尾不带 / 或带都可）
+    权限：必须是该对象作者。
+    """
+    parent_type = request.POST.get('parent_type')
+    parent_id = request.POST.get('parent_id')
+    folder_path = request.POST.get('folder_path', '')
+    if parent_type not in {'topic', 'entry', 'comment'}:
+        return JsonResponse({'ok': False, 'error': 'invalid parent_type'}, status=400)
+    try:
+        parent_id_int = int(parent_id)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'invalid parent_id'}, status=400)
+    # 规范化 folder_path
+    folder_path = (folder_path or '').replace('\\', '/').strip('/')
+    if not folder_path:
+        return JsonResponse({'ok': False, 'error': 'empty folder_path'}, status=400)
+
+    obj = None
+    if parent_type == 'topic':
+        obj = get_object_or_404(Topic, id=parent_id_int)
+        if obj.owner != request.user:
+            raise Http404
+        base_qs = obj.attachment_set.all()
+    elif parent_type == 'entry':
+        obj = get_object_or_404(Entry, id=parent_id_int)
+        if obj.owner != request.user:
+            raise Http404
+        base_qs = obj.attachment_set.all()
+    else:
+        obj = get_object_or_404(Comment, id=parent_id_int)
+        # 评论作者或日记作者都可？这里严格限制为日记作者（即 entry.owner）
+        if obj.entry.owner != request.user:
+            raise Http404
+        base_qs = obj.attachment_set.all()
+
+    # 查找所有以 folder_path 为前缀的附件：
+    # relative_path 可能是 '图片/a.png'，folder_path 传入 '图片' 时应匹配。
+    # 需要匹配 folder_path == relative_path 的目录（即该目录下直接上传的文件）和 folder_path/ 后续子路径。
+    prefix = folder_path + '/'  # 用于子项匹配
+    targets = base_qs.filter(Q(relative_path=folder_path) | Q(relative_path__startswith=prefix))
+    count = targets.count()
+    if not count:
+        return JsonResponse({'ok': True, 'deleted': 0})
+    with transaction.atomic():
+        for att in targets:
+            att.delete()
+    return JsonResponse({'ok': True, 'deleted': count})
+
+
+@login_required
+@require_POST
 def upload_attachments_api(request):
     """异步上传接口：支持多文件与文件夹（相对路径）。
     期望前端 name=files，多值；对应相对路径通过 formData.append('relative_path[index]', path)
@@ -382,6 +450,105 @@ def preview_attachment(request, attachment_id):
         'topic': topic,
         'text': text,
     })
+
+
+@login_required
+def download_attachment(request, attachment_id):
+    """提供单个附件文件下载，带原始文件名；遵循与预览相同的权限规则。"""
+    att = get_object_or_404(Attachment, id=attachment_id)
+    entry = att.entry or (att.comment.entry if att.comment_id else None)
+    topic = att.topic or (entry.topic if entry else None)
+    if topic is None:
+        raise Http404
+    # 权限校验（与 preview 基本一致）
+    if topic.owner == request.user:
+        pass
+    else:
+        if not topic.is_public:
+            raise Http404
+        if entry and not entry.is_public:
+            raise Http404
+        if not att.is_public and att.owner != request.user:
+            raise Http404
+    f = att.file
+    try:
+        response = FileResponse(f.open('rb'))
+    except Exception:
+        raise Http404
+    # 设置文件名（处理非 ASCII）
+    from urllib.parse import quote
+    filename = att.original_name or 'download'
+    response['Content-Disposition'] = "attachment; filename*=UTF-8''" + quote(filename)
+    return response
+
+
+@login_required
+def download_folder(request):
+    """将指定父对象下某个相对路径前缀对应的所有附件打包 zip 下载。
+    GET 参数：parent_type=topic|entry|comment, parent_id=数字, folder_path=路径
+    权限：与附件访问一致；不要求作者身份（只要能看到附件即可下载）。
+    """
+    parent_type = request.GET.get('parent_type')
+    parent_id = request.GET.get('parent_id')
+    folder_path = (request.GET.get('folder_path') or '').replace('\\', '/').strip('/')
+    if parent_type not in {'topic', 'entry', 'comment'}:
+        raise Http404
+    try:
+        pid = int(parent_id)
+    except Exception:
+        raise Http404
+    if not folder_path:
+        raise Http404
+    if parent_type == 'topic':
+        obj = get_object_or_404(Topic, id=pid)
+        attachments_qs = obj.attachment_set.all()
+        topic = obj
+        entry = None
+    elif parent_type == 'entry':
+        obj = get_object_or_404(Entry, id=pid)
+        attachments_qs = obj.attachment_set.all()
+        topic = obj.topic
+        entry = obj
+    else:
+        obj = get_object_or_404(Comment, id=pid)
+        attachments_qs = obj.attachment_set.all()
+        topic = obj.entry.topic
+        entry = obj.entry
+    # 访问权限（复用 preview 逻辑）
+    if topic.owner == request.user:
+        pass
+    else:
+        if not topic.is_public:
+            raise Http404
+        if entry and not entry.is_public:
+            raise Http404
+    prefix = folder_path + '/'
+    targets = attachments_qs.filter(Q(relative_path=folder_path) | Q(relative_path__startswith=prefix))
+    if not targets.exists():
+        raise Http404
+    # 构建 zip 流
+    import io, zipfile
+    buf = io.BytesIO()
+    zf = zipfile.ZipFile(buf, 'w', zipfile.ZIP_DEFLATED)
+    for att in targets:
+        # 计算在 zip 中的相对路径：使用 att.relative_path 的后缀部分（去掉前缀文件夹）
+        rel = att.relative_path or att.original_name
+        if rel.startswith(folder_path):
+            arcname = rel
+        else:
+            arcname = folder_path + '/' + (att.original_name or 'file')
+        try:
+            with att.file.open('rb') as rf:
+                zf.writestr(arcname, rf.read())
+        except Exception:
+            continue
+    zf.close()
+    buf.seek(0)
+    from urllib.parse import quote
+    resp = FileResponse(buf, as_attachment=True, filename=folder_path + '.zip')
+    resp['Content-Type'] = 'application/zip'
+    resp['Content-Disposition'] = "attachment; filename*=UTF-8''" + quote(folder_path + '.zip')
+    return resp
 
 
 @login_required

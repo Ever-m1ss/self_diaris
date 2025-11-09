@@ -11,14 +11,21 @@
 
 {% if tree.dirs %}
   {% for name, subtree in tree.dirs.items %}
-    <div class="list-group-item list-group-item-action d-flex align-items-center ll-attachment-item ll-folder-row collapsed" data-folder-name="{{ name }}">
+    <div class="list-group-item list-group-item-action d-flex align-items-center ll-attachment-item ll-folder-row collapsed" data-folder-name="{{ name }}" data-folder-path="{{ base }}{{ name }}">
       <img src="{% static 'img/icons/caret-right.svg' %}" alt="toggle" class="ll-caret-icon me-1">
       <img src="{% static 'img/icons/folder.svg' %}" alt="folder" class="ll-attach-icon me-2">
       <span class="flex-grow-1">{{ name }}</span>
       <span class="text-muted small ms-2 ll-folder-meta">文件夹</span>
+      {# 下载文件夹（受 allow_download 控制） #}
+      {% if allow_download|default:True %}
+        <button type="button" class="btn btn-sm btn-outline-secondary ms-2 ll-folder-dl" data-folder-path="{{ base }}{{ name }}">下载</button>
+      {% endif %}
+      {% if (allow_modify|default:True) and user == parent_owner %}
+        <button type="button" class="btn btn-sm btn-outline-danger ms-2 ll-folder-del" data-folder-path="{{ base }}{{ name }}">删除</button>
+      {% endif %}
     </div>
     <div class="list-group list-group-flush ms-4 ll-folder-children d-none mb-2">
-      {% include 'learning_logs/_attachment_tree.html' with tree=subtree parent_owner=parent_owner %}
+      {% include 'learning_logs/_attachment_tree.html' with tree=subtree parent_owner=parent_owner base=base|add:name|add:'/' %}
     </div>
   {% endfor %}
 {% endif %}
@@ -28,12 +35,20 @@
     <div class="list-group-item list-group-item-action d-flex align-items-center ll-attachment-item">
       <img src="{% static att.original_name|icon_for %}" alt="file" class="ll-attach-icon me-2">
 
-      <a href="{{ att.file.url }}" target="_blank" class="flex-grow-1 text-decoration-none text-body">
-        {{ att.original_name|filename }}
-      </a>
+      {% if allow_download|default:True %}
+        <a href="{% url 'learning_logs:download_attachment' att.id %}" class="flex-grow-1 text-decoration-none text-body">
+          {{ att.original_name|filename }}
+        </a>
+      {% else %}
+        <span class="flex-grow-1">{{ att.original_name|filename }}</span>
+      {% endif %}
       <span class="text-muted small me-3">{{ att.size|filesizeformat }}</span>
+      {# 文件下载按钮（受 allow_download 控制） #}
+      {% if allow_download|default:True %}
+        <a class="btn btn-sm btn-outline-secondary me-2" href="{% url 'learning_logs:download_attachment' att.id %}">下载</a>
+      {% endif %}
       
-      {% if user == parent_owner or user == att.owner %}
+      {% if (allow_modify|default:True) and (user == parent_owner or user == att.owner) %}
         <button class="btn btn-sm btn-outline-danger delete-attachment" data-id="{{ att.id }}" data-name="{{ att.original_name }}">删除</button>
       {% endif %}
     </div>

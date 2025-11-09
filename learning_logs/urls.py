@@ -26,7 +26,11 @@ urlpatterns = [
     path('add_comment/<int:entry_id>/', views.add_comment, name='add_comment'),
     # Attachment preview
     path('attachments/preview/<int:attachment_id>/', views.preview_attachment, name='preview_attachment'),
+    # Attachment downloads
+    path('attachments/download/<int:attachment_id>/', views.download_attachment, name='download_attachment'),
+    path('attachments/download_folder/', views.download_folder, name='download_folder'),
     # Attachment APIs
     path('attachments/delete/<int:attachment_id>/', views.delete_attachment, name='delete_attachment'),
     path('attachments/upload/', views.upload_attachments_api, name='upload_attachments_api'),
+    path('attachments/delete_folder/', views.delete_folder_api, name='delete_folder_api'),
 ]
