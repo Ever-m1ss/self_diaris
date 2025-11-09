@@ -51,8 +51,9 @@
     icon.alt = iconName.split('-')[1];
     item.appendChild(icon);
 
-    const link = document.createElement('a');
-    link.href = a.url;
+  const link = document.createElement('a');
+  // 统一通过后端下载端点，避免直接走媒体 URL 引发 404 或缺少下载头
+  link.href = `/attachments/download/${a.id}/`;
     link.target = '_blank';
     link.className = 'flex-grow-1 text-decoration-none text-body';
     link.textContent = a.name;
