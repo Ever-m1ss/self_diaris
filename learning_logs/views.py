@@ -480,9 +480,36 @@ def download_attachment(request, attachment_id):
             raise Http404
     f = att.file
     try:
-        response = FileResponse(f.open('rb'))
+        # 诊断读写：尝试读取首字节确认 storage 真正返回内容，然后重新打开以供 FileResponse 使用
+        try:
+            # 先记录一些元信息
+            size_attr = getattr(f, 'size', None)
+            name_attr = getattr(f, 'name', None)
+            log.info('download_attachment attempt open id=%s name=%s size_attr=%s content_type=%s att.size=%s', att.id, name_attr, size_attr, att.content_type, att.size)
+        except Exception:
+            log.exception('download_attachment metadata read failed for id=%s', att.id)
+
+        # 尝试读取一小段以确认后端是否返回有效数据
+        try:
+            tmp = f.open('rb')
+            first = tmp.read(1)
+            tmp.close()
+            log.info('download_attachment first_byte_len=%d id=%s', 0 if first is None else len(first), att.id)
+        except Exception:
+            log.exception('download_attachment quick_read failed id=%s', att.id)
+
+        # 重新打开用于返回，部分 storage backend 在重复 open 上表现不同但通常可行
+        fh = f.open('rb')
+        response = FileResponse(fh)
     except Exception:
-        log.exception('download_attachment file_open_failed id=%s storage_name=%s', att.id, getattr(f, 'name', None))
+        # 无法通过 storage.open 读取（例如 Cloudinary 未正确配置或网络问题），退回到重定向到文件外链
+        log.exception('download_attachment file_open_failed id=%s storage_name=%s, falling back to redirect', att.id, getattr(f, 'name', None))
+        try:
+            url = f.url
+        except Exception:
+            url = None
+        if url:
+            return redirect(url)
         raise Http404
     # 设置文件名（处理非 ASCII）
     from urllib.parse import quote
