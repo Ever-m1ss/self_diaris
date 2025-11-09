@@ -20,7 +20,7 @@
       {% if allow_download|default:True %}
         <button type="button" class="btn btn-sm btn-outline-secondary ms-2 ll-folder-dl" data-folder-path="{{ base }}{{ name }}">下载</button>
       {% endif %}
-      {% if allow_modify|default:True and user == parent_owner %}
+  {% if allow_modify and user == parent_owner %}
         <button type="button" class="btn btn-sm btn-outline-danger ms-2 ll-folder-del" data-folder-path="{{ base }}{{ name }}">删除</button>
       {% endif %}
     </div>
@@ -52,7 +52,7 @@
         <a class="btn btn-sm btn-outline-secondary me-2" href="{{ att.file.url }}">下载</a>
       {% endif %}
       
-      {% if allow_modify|default:True and (user == parent_owner or user == att.owner) %}
+  {% if allow_modify and (user == parent_owner or user == att.owner) %}
         <button class="btn btn-sm btn-outline-danger delete-attachment" data-id="{{ att.id }}" data-name="{{ att.original_name }}">删除</button>
       {% endif %}
     </div>
