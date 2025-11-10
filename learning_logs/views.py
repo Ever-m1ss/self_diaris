@@ -511,11 +511,30 @@ def download_attachment(request, attachment_id):
         if url:
             return redirect(url)
         raise Http404
-    # 设置文件名（处理非 ASCII）
+    # 设置文件名（处理非 ASCII），并尽量设置 Content-Type / Content-Length 以兼容各浏览器
     from urllib.parse import quote
-    filename = att.original_name or 'download'
-    response['Content-Disposition'] = "attachment; filename*=UTF-8''" + quote(filename)
-    log.info('download_attachment success id=%s filename=%s size=%s', att.id, filename, getattr(f, 'size', None))
+    # 允许通过 ?download_name=... 指定建议的下载文件名（仅建议，浏览器可忽略）
+    def _sanitize_name(n: str) -> str:
+        if not n:
+            return ''
+        # 去掉路径部分及危险字符，限制长度
+        n = n.replace('\\', '/').split('/')[-1]
+        return n[:200]
+
+    download_name = _sanitize_name(request.GET.get('download_name', '') or att.original_name or 'download')
+    response['Content-Disposition'] = "attachment; filename*=UTF-8''" + quote(download_name)
+    try:
+        # 明确告知浏览器真实的 MIME 类型
+        if att.content_type:
+            response['Content-Type'] = att.content_type
+    except Exception:
+        pass
+    try:
+        if getattr(att, 'size', None):
+            response['Content-Length'] = str(att.size)
+    except Exception:
+        pass
+    log.info('download_attachment success id=%s filename=%s size=%s', att.id, download_name, getattr(f, 'size', None))
     return response
 
 
@@ -582,9 +601,18 @@ def download_folder(request):
     zf.close()
     buf.seek(0)
     from urllib.parse import quote
-    resp = FileResponse(buf, as_attachment=True, filename=folder_path + '.zip')
+    # 支持 ?download_name=custom_name.zip 来建议客户端下载时的文件名（浏览器可选择忽略）
+    def _sanitize_name(n: str) -> str:
+        if not n:
+            return ''
+        n = n.replace('\\', '/').split('/')[-1]
+        return n[:200]
+
+    requested_name = _sanitize_name(request.GET.get('download_name', ''))
+    zip_name = requested_name or (folder_path + '.zip')
+    resp = FileResponse(buf, as_attachment=True, filename=zip_name)
     resp['Content-Type'] = 'application/zip'
-    resp['Content-Disposition'] = "attachment; filename*=UTF-8''" + quote(folder_path + '.zip')
+    resp['Content-Disposition'] = "attachment; filename*=UTF-8''" + quote(zip_name)
     return resp
 
 
