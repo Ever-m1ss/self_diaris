@@ -63,9 +63,9 @@
   sizeSpan.className = 'text-muted small me-3';
   sizeSpan.textContent = humanSize(a.size);
   item.appendChild(sizeSpan);
-  // 下载按钮
+  // 下载按钮（outline 绿色）
   const dl = document.createElement('a');
-  dl.className='btn btn-sm btn-outline-secondary me-2';
+  dl.className='btn btn-sm btn-outline-success me-2';
   dl.textContent='下载';
   dl.href='/attachments/download/'+a.id+'/';
   item.appendChild(dl);

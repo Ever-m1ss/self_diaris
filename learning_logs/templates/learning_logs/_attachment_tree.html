@@ -18,7 +18,7 @@
       <span class="text-muted small ms-2 ll-folder-meta">文件夹</span>
       {# 下载文件夹（受 allow_download 控制） #}
       {% if allow_download %}
-        <button type="button" class="btn btn-sm btn-outline-secondary ms-2 ll-folder-dl" data-folder-path="{{ base }}{{ name }}">下载</button>
+        <button type="button" class="btn btn-sm btn-outline-success ms-2 ll-folder-dl" data-folder-path="{{ base }}{{ name }}">下载</button>
       {% endif %}
   {% if allow_modify and user == parent_owner %}
         <button type="button" class="btn btn-sm btn-outline-danger ms-2 ll-folder-del" data-folder-path="{{ base }}{{ name }}">删除</button>
@@ -49,7 +49,7 @@
       <span class="text-muted small me-3">{{ att.size|filesizeformat }}</span>
       {# 文件下载按钮（受 allow_download 控制） #}
       {% if allow_download and att.file %}
-        <a class="btn btn-sm btn-outline-secondary me-2" href="{% url 'learning_logs:download_attachment' att.id %}">下载</a>
+        <a class="btn btn-sm btn-outline-success me-2" href="{% url 'learning_logs:download_attachment' att.id %}">下载</a>
       {% endif %}
       
   {# 避免 smartif 解析括号导致 '(user' token，拆成嵌套条件 #}

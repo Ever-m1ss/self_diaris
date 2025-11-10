@@ -13,6 +13,13 @@
     <link rel="preload" href="{{ background_image_url }}" as="image">
   {% endif %}
   {% block extra_head %}{% endblock %}
+  <style>
+    /* 返回按钮下沉特效 */
+    .back-btn{display:inline-flex;align-items:center;justify-content:center;width:28px;height:28px;padding:0;border-radius:6px;transition:transform .12s ease,box-shadow .12s ease;}
+    .back-btn img{display:block;width:100%;height:100%;}
+    .back-btn:hover{transform:translateY(2px);}
+    .back-btn:active{transform:translateY(4px);}
+  </style>
 </head>
 
 <body class="page-is-loading {% if user.is_authenticated %}logged-in{% endif %} {% block body_class %}{% endblock %}"
@@ -64,6 +71,11 @@
   </nav> <!-- End of navbar -->
   <main class="container">
     <div class="pb-2 mb-2 border-bottom">
+      {% if request.resolver_match and request.resolver_match.url_name != 'index' %}
+        <button type="button" class="btn btn-sm me-2 p-0 border-0 bg-transparent" onclick="history.back();" aria-label="返回">
+          <img src="{% static 'img/icons/arrow-left.svg' %}" alt="返回" style="width:28px;height:28px;" />
+        </button>
+      {% endif %}
       {% block page_header %}{% endblock page_header %}
     </div>
     <div>
@@ -72,6 +84,20 @@
 
   </main>
   <script src="{% static 'js/background.js' %}" defer></script>
+  {# Global icon map for attachments and include attachments script globally so discovery/index can use folder expand etc. #}
+  <script>
+    window.LL_ICON_URLS = {
+      folder: "{% static 'img/icons/folder.svg' %}",
+      file_image: "{% static 'img/icons/file-image.svg' %}",
+      file_play: "{% static 'img/icons/file-play.svg' %}",
+      file_music: "{% static 'img/icons/file-music.svg' %}",
+      file_text: "{% static 'img/icons/file-text.svg' %}",
+      file_earmark: "{% static 'img/icons/file-earmark.svg' %}",
+      caret_right: "{% static 'img/icons/caret-right.svg' %}",
+      caret_down: "{% static 'img/icons/caret-down.svg' %}",
+    };
+  </script>
+  <script src="{% static 'js/attachments.js' %}" defer></script>
 </body>
 
 </html>
