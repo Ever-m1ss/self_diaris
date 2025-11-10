@@ -36,7 +36,10 @@ class CommentForm(forms.ModelForm):
         self.fields['parent_id'] = forms.IntegerField(required=False, widget=forms.HiddenInput())
     class Meta:
         model = Comment
-        fields = ['name', 'text', 'parent_id']
+        # 'parent_id' is a non-model hidden field used to pass the parent comment's id
+        # to the view when creating a reply. Do NOT include it in ModelForm Meta.fields
+        # because ModelForm expects actual model field names here.
+        fields = ['name', 'text']
         labels = {
             'name': '昵称（未登录时必填）',
             'text': '评论内容',
