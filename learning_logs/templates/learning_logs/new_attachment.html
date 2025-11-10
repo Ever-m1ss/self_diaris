@@ -4,7 +4,7 @@
 {% block page_header %}
   <div class="d-flex justify-content-between align-items-center">
     <h2 class="mb-0">上传附件</h2>
-  <a class="small" href="{% url 'learning_logs:topic' topic.text %}">{{ topic }}</a>
+  <a class="small" href="{% url 'learning_logs:topic_by_user' topic.owner.username topic.text %}">{{ topic }}</a>
   </div>
 {% endblock page_header %}
 
@@ -16,7 +16,7 @@
         {% csrf_token %}
         {% bootstrap_form form show_labels=True %}
         <div class="d-flex justify-content-between mt-3">
-          <a href="{% url 'learning_logs:topic' topic.text %}" class="btn btn-outline-secondary">取消</a>
+          <a href="{% url 'learning_logs:topic_by_user' topic.owner.username topic.text %}" class="btn btn-outline-secondary">取消</a>
           <button type="submit" class="btn btn-primary">上传</button>
         </div>
       </form>

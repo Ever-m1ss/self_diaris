@@ -5,7 +5,7 @@
 {% endblock page_header %}
 
 {% block content %}
-  <p><a href="{% url 'learning_logs:topic' topic.text %}">返回日记本</a></p>
+  <p><a href="{% url 'learning_logs:topic_by_user' topic.owner.username topic.text %}">返回日记本</a></p>
   <div class="card">
     <div class="card-body">
       <pre class="mb-0" style="white-space: pre-wrap; word-break: break-word;">{{ text }}</pre>

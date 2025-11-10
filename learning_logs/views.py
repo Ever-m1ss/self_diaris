@@ -1,4 +1,5 @@
 from django.shortcuts import render, redirect, get_object_or_404
+from django.urls import reverse
 from django.contrib.auth.decorators import login_required
 from django.http import Http404, JsonResponse, HttpResponseBadRequest
 from django.http import FileResponse
@@ -77,9 +78,10 @@ def build_attachment_tree(attachments):
 
 
 @login_required
-def topic(request, topic_name):
+def topic(request, topic_name, username=None):
     """按名称展示单个日记本及其日记，遵循可见性规则。"""
-    topic = _resolve_topic_by_name_for_user(topic_name, request.user)
+    # If username provided, prefer topic owned by that username
+    topic = _resolve_topic_by_name_for_user(topic_name, request.user, username=username)
 
     # 条目可见性：
     if request.user == topic.owner:
@@ -183,7 +185,11 @@ def new_entry(request, topic_id):
                 new_entry.save()
                 # 附件（可选，批量）
                 _save_attachments_from_request(files, request.user, entry=new_entry, relative_paths=rel_paths)
-                return redirect('learning_logs:topic', topic_name=topic.text)
+                try:
+                    url = reverse('learning_logs:topic_by_user', kwargs={'username': topic.owner.username, 'topic_name': topic.text})
+                    return redirect(url)
+                except Exception:
+                    return redirect('learning_logs:topic', topic_name=topic.text)
 
     # Display a blank or invalid form.
     # 构建日记本附件树供页面展示
@@ -215,7 +221,11 @@ def edit_entry(request, entry_id):
             files = request.FILES.getlist('attachments')
             rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
             _save_attachments_from_request(files, request.user, entry=entry, relative_paths=rel_paths)
-            return redirect('learning_logs:topic', topic_name=topic.text)
+            try:
+                url = reverse('learning_logs:topic_by_user', kwargs={'username': topic.owner.username, 'topic_name': topic.text})
+                return redirect(url)
+            except Exception:
+                return redirect('learning_logs:topic', topic_name=topic.text)
 
     # 构建本日记附件树供页面展示
     try:
@@ -242,7 +252,11 @@ def delete_entry(request, entry_id):
 
     if request.method == 'POST':
         entry.delete()
-        return redirect('learning_logs:topic', topic_name=topic.text)
+        try:
+            url = reverse('learning_logs:topic_by_user', kwargs={'username': topic.owner.username, 'topic_name': topic.text})
+            return redirect(url)
+        except Exception:
+            return redirect('learning_logs:topic', topic_name=topic.text)
 
     return render(request, 'learning_logs/delete_entry_confirm.html', {
         'entry': entry,
@@ -676,26 +690,49 @@ def add_comment(request, entry_id):
         files = request.FILES.getlist('comment_attachments')
         # 若文本与附件皆为空，则忽略此次提交
         if (not (comment.text or '').strip()) and not files:
-            return redirect('learning_logs:topic', topic_name=topic.text)
+            try:
+                url = reverse('learning_logs:topic_by_user', kwargs={'username': topic.owner.username, 'topic_name': topic.text})
+                return redirect(url)
+            except Exception:
+                return redirect('learning_logs:topic', topic_name=topic.text)
         comment.save()
         # 保存评论附件（可多文件）
         _save_attachments_from_request(files, request.user, comment=comment)
 
-    return redirect('learning_logs:topic', topic_name=topic.text)
+    # Redirect back to discovery view for the topic if available (preserve user-prefixed path)
+    try:
+        owner_username = topic.owner.username
+        url = reverse('learning_logs:discovey_by_user', kwargs={'username': owner_username, 'topic_name': topic.text})
+        return redirect(url)
+    except Exception:
+        return redirect('learning_logs:topic', topic_name=topic.text)
 
 
-def _resolve_topic_by_name_for_user(topic_name: str, user):
+def _resolve_topic_by_name_for_user(topic_name: str, user, username: str = None):
     """根据名称为当前用户解析可访问的 Topic。
     优先返回用户自己的同名日记本；否则返回他人公开的同名日记本（若存在则取最新创建的一个）。
     若均不存在则 404。
     注意：若名称包含斜杠可能导致路径解析异常，建议避免在名称中使用 '/'
     """
     qs = Topic.objects.filter(text=topic_name)
+    # If username provided, try to resolve by username first
+    if username:
+        from django.contrib.auth.models import User
+        try:
+            owner = User.objects.get(username=username)
+            try:
+                return qs.get(owner=owner)
+            except Topic.DoesNotExist:
+                pass
+        except User.DoesNotExist:
+            pass
+
     if user.is_authenticated:
         try:
             return qs.get(owner=user)
         except Topic.DoesNotExist:
             pass
+
     public_qs = qs.filter(is_public=True).order_by('-date_added')
     topic = public_qs.first()
     if not topic:
