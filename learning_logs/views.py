@@ -102,11 +102,12 @@ def topic(request, topic_name, username=None):
 
 
 @login_required
-def discovey(request, topic_name):
+def discovey(request, topic_name, username=None):
     """Discovery route: render the same layout as index but for a specific topic name.
     This is used from the "发现" page and is read-only (no edit links shown there).
+    If `username` is provided (via username-prefixed URL), prefer resolving the topic for that owner.
     """
-    topic = _resolve_topic_by_name_for_user(topic_name, request.user)
+    topic = _resolve_topic_by_name_for_user(topic_name, request.user, username=username)
 
     # 条目可见性：与 topic 视图一致
     if request.user == topic.owner:
