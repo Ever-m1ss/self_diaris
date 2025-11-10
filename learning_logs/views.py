@@ -98,6 +98,40 @@ def topic(request, topic_name):
     context = {'topic': topic, 'entries': entries, 'comment_form': comment_form}
     return render(request, 'learning_logs/topic.html', context)
 
+
+@login_required
+def discovey(request, topic_name):
+    """Discovery route: render the same layout as index but for a specific topic name.
+    This is used from the "发现" page and is read-only (no edit links shown there).
+    """
+    topic = _resolve_topic_by_name_for_user(topic_name, request.user)
+
+    # 条目可见性：与 topic 视图一致
+    if request.user == topic.owner:
+        entries = topic.entry_set.order_by('-date_added')
+    else:
+        entries = topic.entry_set.filter(Q(is_public=True) | Q(owner=request.user)).order_by('-date_added')
+
+    # 为每个 entry 构建附件树
+    for entry in entries:
+        entry.attachment_tree = build_attachment_tree(entry.attachment_set.all())
+
+    # 为 topic 本身构建附件树
+    topic.attachment_tree = build_attachment_tree(topic.attachment_set.all())
+
+    comment_form = CommentForm()
+
+    # 左侧的可发现日记本列表
+    topics_qs = Topic.objects.filter(Q(owner=request.user) | Q(is_public=True)).order_by('-date_added')
+
+    context = {
+        'discover_topics': topics_qs,
+        'selected_topic': topic,
+        'entries': entries,
+        'comment_form': comment_form,
+    }
+    return render(request, 'learning_logs/index.html', context)
+
 @login_required
 def new_topic(request):
     """Add a new topic."""

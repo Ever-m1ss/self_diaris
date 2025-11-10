@@ -50,7 +50,7 @@
               <div class="list-group">
                 {% for t in discover_topics %}
                   <a class="list-group-item list-group-item-action {% if selected_topic and selected_topic.id == t.id %}active{% endif %}"
-                     href="{% url 'learning_logs:index' %}?t={{ t.id }}">
+                     href="{% url 'learning_logs:discovey' t.text %}">
                     <div class="d-flex w-100 justify-content-between">
                       <span>{{ t.text }}</span>
                       <small class="text-muted">{{ t.date_added|date:'Y-m-d' }}</small>
@@ -71,74 +71,94 @@
             <div class="d-flex justify-content-between align-items-center mb-2">
               <h5 class="card-title mb-0">日记</h5>
               {% if selected_topic %}
-                <a class="btn btn-sm btn-outline-primary" href="{% url 'learning_logs:topic' selected_topic.text %}">进入该日记本</a>
+                <a class="btn btn-sm btn-outline-primary" href="{% url 'learning_logs:discovey' selected_topic.text %}">进入该日记本</a>
               {% endif %}
             </div>
-            {% if selected_topic %}
-              {% if entries %}
-                <ul class="list-group list-group-flush">
-                  {% for e in entries %}
-                    <li class="list-group-item">
-                      <div class="d-flex justify-content-between align-items-center">
-                        <div class="small text-muted">{{ e.date_added|date:'Y-m-d H:i' }}</div>
-                        <div>
-                          {% if e.is_public %}
+              {% if selected_topic %}
+                {% if entries %}
+                  {% for entry in entries %}
+                    <div class="card mb-3">
+                      <h4 class="card-header d-flex justify-content-between align-items-center">
+                        <span>
+                          {{ entry.date_added|date:'M d, Y H:i' }}
+                        </span>
+                        <span>
+                          {% if entry.is_public %}
                             <span class="badge text-bg-success">公开</span>
                           {% else %}
                             <span class="badge text-bg-secondary">私密</span>
                           {% endif %}
-                        </div>
-                      </div>
-                      <div class="mt-2" style="max-height:6em; overflow:hidden;">{{ e.text|linebreaks }}</div>
-                      {# 附件展示：紧随正文 #}
-                      {% with attachments=e.attachment_set.all %}
-                        {% if attachments %}
-                          <div class="mt-2">
-                            <div class="row g-3">
-                              {% for a in attachments %}
-                                {% if a.is_public or a.owner == user %}
-                                  <div class="col-12">
-                                    <div class="d-flex align-items-start justify-content-between">
-                                      <div class="me-3" style="min-width:140px;max-width:280px;">
-                                        {% if a.is_image %}
-                                          <img src="{{ a.file.url }}" class="img-fluid rounded border" alt="{{ a.original_name }}">
-                                        {% elif a.is_audio %}
-                                          <audio controls src="{{ a.file.url }}" style="width:100%"></audio>
-                                        {% elif a.is_video %}
-                                          <video controls src="{{ a.file.url }}" style="width:100%"></video>
-                                        {% elif a.is_text_like %}
-                                          <a class="btn btn-sm btn-outline-primary" href="{% url 'learning_logs:preview_attachment' a.id %}">预览文本</a>
-                                        {% else %}
-                                          <span class="text-muted">无法预览的文件类型</span>
-                                        {% endif %}
-                                      </div>
-                                      <div class="flex-grow-1">
-                                        <div class="small"><strong>{{ a.original_name }}</strong></div>
-                                        <div class="small text-muted">大小：{{ a.size }} 字节 · {{ a.uploaded_at|date:'Y-m-d H:i' }}</div>
-                                        <div class="mt-1 small"><a href="{{ a.file.url }}" download>下载</a></div>
-                                      </div>
-                                    </div>
-                                  </div>
-                                {% endif %}
-                              {% endfor %}
-                            </div>
+                        </span>
+                      </h4>
+                      <div class="card-body">
+                        {{ entry.text|linebreaks }}
+
+                        <hr>
+                        <h6 class="mb-2">附件</h6>
+                        <div class="ll-attachments" data-parent-type="entry" data-parent-id="{{ entry.id }}">
+                          <div class="list-group list-group-flush ll-attach-list">
+                            {% include 'learning_logs/_attachment_tree.html' with tree=entry.attachment_tree parent_owner=entry.owner base='' allow_modify=False allow_download=True %}
                           </div>
-                        {% endif %}
-                      {% endwith %}
-                      <div class="mt-2 small">
-                        {% if e.owner == user %}
-                          <a href="{% url 'learning_logs:edit_entry' e.id %}" class="btn btn-sm btn-outline-primary">编辑</a>
+                        </div>
+
+                        {% if entry.is_public or entry.owner == user %}
+                          <hr>
+                          <h6 class="mb-2">评论</h6>
+                          <div class="mb-3">
+                            {% if entry.comment_set.all %}
+                              <div class="list-group list-group-flush">
+                                {% for c in entry.comment_set.all %}
+                                  <div class="list-group-item">
+                                    <div class="d-flex justify-content-between align-items-center mb-1">
+                                      <div class="fw-semibold">{{ c.display_name }}</div>
+                                      <div class="small text-muted">{{ c.date_added|date:'Y-m-d H:i' }}</div>
+                                    </div>
+                                    {% if c.text %}
+                                      <div class="mb-1">{{ c.text|linebreaks }}</div>
+                                    {% endif %}
+                                    {% with attachments=c.attachment_set.all %}
+                                      {% if attachments %}
+                                        <div class="mt-1">
+                                          {% include 'learning_logs/_attachments_list.html' with attachments=attachments parent_owner=entry.owner %}
+                                        </div>
+                                      {% endif %}
+                                    {% endwith %}
+                                  </div>
+                                {% endfor %}
+                              </div>
+                            {% else %}
+                              <div class="text-muted">还没有评论，快来抢沙发吧。</div>
+                            {% endif %}
+                          </div>
+
+                          <form action="{% url 'learning_logs:add_comment' entry.id %}" method="post" enctype="multipart/form-data" class="mt-2">
+                            {% csrf_token %}
+                            <div class="mb-2">
+                              <label class="form-label" for="text-{{ entry.id }}">评论内容</label>
+                              <textarea name="text" id="text-{{ entry.id }}" class="form-control" rows="3"></textarea>
+                            </div>
+                            <div class="form-check mb-2">
+                              <input class="form-check-input" type="checkbox" name="anonymous" id="anonymous-{{ entry.id }}">
+                              <label class="form-check-label" for="anonymous-{{ entry.id }}">匿名评论</label>
+                            </div>
+                            <div class="mb-2">
+                              <label class="form-label">附件（可选，可多选）</label>
+                              <input class="form-control" type="file" name="comment_attachments" multiple>
+                            </div>
+                            <div class="text-end">
+                              <button class="btn btn-outline-primary btn-sm" type="submit">发布评论</button>
+                            </div>
+                          </form>
                         {% endif %}
                       </div>
-                    </li>
+                    </div>
                   {% endfor %}
-                </ul>
+                {% else %}
+                  <div class="text-muted">该日记本尚无可浏览的日记。</div>
+                {% endif %}
               {% else %}
-                <div class="text-muted">该日记本尚无可浏览的日记。</div>
+                <div class="text-muted">从左侧选择一个日记本开始浏览。</div>
               {% endif %}
-            {% else %}
-              <div class="text-muted">从左侧选择一个日记本开始浏览。</div>
-            {% endif %}
           </div>
         </div>
       </div>
