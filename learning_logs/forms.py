@@ -32,9 +32,11 @@ class CommentForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # 允许仅上传附件而不填写评论文字
         self.fields['text'].required = False
+        # 隐藏字段：parent_id 用于回复时传入父评论 id（后端会在视图中校验所属 entry）
+        self.fields['parent_id'] = forms.IntegerField(required=False, widget=forms.HiddenInput())
     class Meta:
         model = Comment
-        fields = ['name', 'text']
+        fields = ['name', 'text', 'parent_id']
         labels = {
             'name': '昵称（未登录时必填）',
             'text': '评论内容',

@@ -71,11 +71,7 @@
   </nav> <!-- End of navbar -->
   <main class="container">
     <div class="pb-2 mb-2 border-bottom">
-      {% if request.resolver_match and request.resolver_match.url_name != 'index' %}
-        <button type="button" class="btn btn-sm me-2 p-0 border-0 bg-transparent" onclick="history.back();" aria-label="返回">
-          <img src="{% static 'img/icons/arrow-left.svg' %}" alt="返回" style="width:28px;height:28px;" />
-        </button>
-      {% endif %}
+      {% block page_back_button %}{% endblock page_back_button %}
       {% block page_header %}{% endblock page_header %}
     </div>
     <div>

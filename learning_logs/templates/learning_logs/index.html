@@ -43,7 +43,11 @@
   {% if user.is_authenticated %}
     <div class="row g-3">
       <div class="col-12 col-lg-4">
-        <div class="card h-100">
+        <div style="position:relative;">
+          <button type="button" class="back-btn" onclick="history.back();" aria-label="返回" style="position:absolute; left:-28px; top:12px; z-index:5;">
+            <img src="{% static 'img/icons/arrow-left.svg' %}" alt="返回" style="width:28px;height:28px;" />
+          </button>
+          <div class="card h-100">
           <div class="card-body">
             <h5 class="card-title">日记本</h5>
             {% if discover_topics %}
@@ -80,7 +84,7 @@
                     <div class="card mb-3">
                       <h4 class="card-header d-flex justify-content-between align-items-center">
                         <span>
-                          {{ entry.date_added|date:'M d, Y H:i' }}
+                          发布于 {{ entry.date_added|date:'Y-m-d H:i' }}{% if entry.last_edited and entry.last_edited != entry.date_added %} · 最后编辑于 {{ entry.last_edited|date:'Y-m-d H:i' }}{% endif %}
                         </span>
                         <span>
                           {% if entry.is_public %}
@@ -105,50 +109,113 @@
                           <hr>
                           <h6 class="mb-2">评论</h6>
                           <div class="mb-3">
-                            {% if entry.comment_set.all %}
-                              <div class="list-group list-group-flush">
-                                {% for c in entry.comment_set.all %}
-                                  <div class="list-group-item">
-                                    <div class="d-flex justify-content-between align-items-center mb-1">
-                                      <div class="fw-semibold">{{ c.display_name }}</div>
-                                      <div class="small text-muted">{{ c.date_added|date:'Y-m-d H:i' }}</div>
-                                    </div>
-                                    {% if c.text %}
-                                      <div class="mb-1">{{ c.text|linebreaks }}</div>
-                                    {% endif %}
-                                    {% with attachments=c.attachment_set.all %}
-                                      {% if attachments %}
-                                        <div class="mt-1">
-                                          {% include 'learning_logs/_attachments_list.html' with attachments=attachments parent_owner=entry.owner %}
+                            {% with top_comments=entry.comment_set.filter(parent__isnull=True) %}
+                              {% if top_comments.exists %}
+                                <div class="list-group list-group-flush">
+                                  {% for c in top_comments %}
+                                    <div class="list-group-item comment-item" data-id="{{ c.id }}">
+                                      <div class="d-flex justify-content-between align-items-center mb-1">
+                                        <div class="fw-semibold">{{ c.display_name }}</div>
+                                        <div class="small text-muted">{{ c.date_added|date:'Y-m-d H:i' }}</div>
+                                      </div>
+                                      {% if c.text %}
+                                        <div class="mb-1">{{ c.text|linebreaks }}</div>
+                                      {% endif %}
+                                      {% with tree=c.attachment_tree parent_owner=entry.owner %}
+                                        {% if tree.files or tree.dirs %}
+                                          <div class="mt-1">
+                                            <div class="ll-attachments" data-parent-type="comment" data-parent-id="{{ c.id }}" {% if c.allow_modify %}data-can-edit="1"{% endif %}>
+                                              <div class="list-group list-group-flush ll-attach-list">
+                                                {% include 'learning_logs/_attachment_tree.html' with tree=tree parent_owner=entry.owner base='' allow_modify=c.allow_modify allow_download=True %}
+                                              </div>
+                                            </div>
+                                          </div>
+                                        {% endif %}
+                                      {% endwith %}
+
+                                      <div class="mt-2 d-flex gap-2">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-reply" data-comment-id="{{ c.id }}">回复</button>
+                                        {% if c.user == user %}
+                                          <button type="button" class="btn btn-sm btn-outline-danger delete-comment ms-2" data-id="{{ c.id }}">删除</button>
+                                        {% endif %}
+                                        {% if c.replies.exists %}
+                                          <button type="button" class="btn btn-sm btn-link ms-auto btn-toggle-replies" data-target="#replies-{{ c.id }}">展开回复 ({{ c.replies.count }})</button>
+                                        {% endif %}
+                                      </div>
+
+                                      {% if c.replies.exists %}
+                                        <div id="replies-{{ c.id }}" class="mt-2 ms-3 d-none">
+                                          <div class="list-group list-group-flush">
+                                            {% for r in c.replies.all %}
+                                              <div class="list-group-item">
+                                                <div class="d-flex justify-content-between align-items-center mb-1">
+                                                  <div class="fw-semibold">{{ r.display_name }}</div>
+                                                  <div class="small text-muted">{{ r.date_added|date:'Y-m-d H:i' }}</div>
+                                                </div>
+                                                {% if r.text %}
+                                                  <div class="mb-1">{{ r.text|linebreaks }}</div>
+                                                {% endif %}
+                                                {% if r.user == user %}
+                                                  <div class="mt-1 text-end">
+                                                    <button type="button" class="btn btn-sm btn-outline-danger delete-comment" data-id="{{ r.id }}">删除</button>
+                                                  </div>
+                                                {% endif %}
+                                                {% if r.replies.exists %}
+                                                  <div class="small text-muted mt-1">
+                                                    {% for rr in r.replies.all %}
+                                                      <div>
+                                                        @{{ rr.display_name }}: {{ rr.text|truncatechars:120 }}
+                                                        {% if rr.user == user %}
+                                                          <button type="button" class="btn btn-sm btn-link text-danger delete-comment" data-id="{{ rr.id }}">删除</button>
+                                                        {% endif %}
+                                                      </div>
+                                                    {% endfor %}
+                                                  </div>
+                                                {% endif %}
+                                              </div>
+                                            {% endfor %}
+                                          </div>
                                         </div>
                                       {% endif %}
-                                    {% endwith %}
-                                  </div>
-                                {% endfor %}
-                              </div>
-                            {% else %}
-                              <div class="text-muted">还没有评论，快来抢沙发吧。</div>
-                            {% endif %}
-                          </div>
 
-                          <form action="{% url 'learning_logs:add_comment' entry.id %}" method="post" enctype="multipart/form-data" class="mt-2">
-                            {% csrf_token %}
-                            <div class="mb-2">
-                              <label class="form-label" for="text-{{ entry.id }}">评论内容</label>
-                              <textarea name="text" id="text-{{ entry.id }}" class="form-control" rows="3"></textarea>
-                            </div>
-                            <div class="form-check mb-2">
-                              <input class="form-check-input" type="checkbox" name="anonymous" id="anonymous-{{ entry.id }}">
-                              <label class="form-check-label" for="anonymous-{{ entry.id }}">匿名评论</label>
-                            </div>
-                            <div class="mb-2">
-                              <label class="form-label">附件（可选，可多选）</label>
-                              <input class="form-control" type="file" name="comment_attachments" multiple>
-                            </div>
-                            <div class="text-end">
-                              <button class="btn btn-outline-primary btn-sm" type="submit">发布评论</button>
-                            </div>
-                          </form>
+                                      <div class="reply-form mt-2 d-none">
+                                        <form action="{% url 'learning_logs:add_comment' entry.id %}" method="post" class="d-flex gap-2 align-items-start">
+                                          {% csrf_token %}
+                                          <input type="hidden" name="parent_id" value="{{ c.id }}">
+                                          <div class="flex-grow-1">
+                                            <textarea name="text" class="form-control" rows="2" placeholder="回复 @{{ c.display_name }}"></textarea>
+                                          </div>
+                                          <div class="d-flex flex-column align-items-end">
+                                            <button class="btn btn-sm btn-primary" type="submit">回复</button>
+                                          </div>
+                                        </form>
+                                      </div>
+                                    </div>
+                                  {% endfor %}
+                                </div>
+                              {% else %}
+                                <div class="text-muted">还没有评论，快来抢沙发吧。</div>
+                              {% endif %}
+                            {% endwith %}
+
+                            <form action="{% url 'learning_logs:add_comment' entry.id %}" method="post" enctype="multipart/form-data" class="mt-2">
+                              {% csrf_token %}
+                              <div class="mb-2">
+                                <label class="form-label" for="text-{{ entry.id }}">评论内容</label>
+                                <textarea name="text" id="text-{{ entry.id }}" class="form-control" rows="3"></textarea>
+                              </div>
+                              <div class="form-check mb-2">
+                                <input class="form-check-input" type="checkbox" name="anonymous" id="anonymous-{{ entry.id }}">
+                                <label class="form-check-label" for="anonymous-{{ entry.id }}">匿名评论</label>
+                              </div>
+                              <div class="mb-2">
+                                <label class="form-label">附件（可选，可多选）</label>
+                                <input class="form-control" type="file" name="comment_attachments" multiple>
+                              </div>
+                              <div class="text-end">
+                                <button class="btn btn-outline-primary btn-sm" type="submit">发布评论</button>
+                              </div>
+                            </form>
                         {% endif %}
                       </div>
                     </div>

@@ -27,6 +27,8 @@ class Entry(models.Model):
     topic = models.ForeignKey(Topic, on_delete=models.CASCADE)
     text = models.TextField()
     date_added = models.DateTimeField(auto_now_add=True)
+    # 记录最后编辑时间（nullable：创建时为空，编辑时由视图设置）
+    last_edited = models.DateTimeField(null=True, blank=True)
     # 是否公开：False 为私密，True 为公开
     is_public = models.BooleanField(default=False)
     # 日记作者（新增，用于区分谁写的这篇日记）
@@ -43,6 +45,7 @@ class Entry(models.Model):
 class Comment(models.Model):
     """对公开日记的评论。允许匿名（无 user），或登录用户。"""
     entry = models.ForeignKey(Entry, on_delete=models.CASCADE)
+    parent = models.ForeignKey('self', on_delete=models.CASCADE, null=True, blank=True, related_name='replies')
     user = models.ForeignKey(User, on_delete=models.CASCADE, null=True, blank=True)
     name = models.CharField(max_length=100, blank=True)
     text = models.TextField()

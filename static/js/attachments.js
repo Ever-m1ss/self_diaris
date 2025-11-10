@@ -294,9 +294,10 @@
 
   function bindGlobalClicks(){
     document.addEventListener('click', (e)=>{
-      const btn = e.target.closest('.delete-attachment');
-      if(btn){
-        const id = btn.dataset.id; if(id) deleteItem(id, btn);
+      // 附件删除（模板 class: ll-attach-del）
+      const attDel = e.target.closest('.ll-attach-del') || e.target.closest('.delete-attachment');
+      if(attDel){
+        const id = attDel.dataset.id; if(id) deleteItem(id, attDel);
       }
       const folderDel = e.target.closest('.ll-folder-del');
       if(folderDel){
@@ -344,6 +345,26 @@
         window.location.href = url;
       }
     });
+    // 评论删除（AJAX）：class delete-comment, data-id
+    document.addEventListener('click', (e)=>{
+      const btn = e.target.closest('.delete-comment');
+      if(!btn) return;
+      const id = btn.dataset.id;
+      if(!id) return;
+      if(!confirm('确认删除该评论？此操作不可撤销。')) return;
+      btn.disabled = true;
+      fetch(`/comments/${encodeURIComponent(id)}/delete/`, {
+        method: 'POST',
+        headers: {'X-CSRFToken': csrftoken, 'X-Requested-With': 'XMLHttpRequest'}
+      }).then(async r=>{
+        if(!r.ok){ throw new Error(await r.text() || r.status); }
+        // 成功：移除评论节点
+        const node = btn.closest('.comment-item');
+        if(node) node.remove();
+      }).catch(err=>{
+        alert('删除评论失败：'+err.message);
+      }).finally(()=>{ btn.disabled = false; });
+    });
   }
 
   document.addEventListener('DOMContentLoaded', ()=>{
@@ -368,6 +389,51 @@
         children.classList.add('d-none');
         if (caret && window.LL_ICON_URLS) caret.src = window.LL_ICON_URLS.caret_right;
       }
+    });
+    // 评论交互：回复表单显示/隐藏 与 展开/收起直接回复列表
+    document.addEventListener('click', (e) => {
+      const replyBtn = e.target.closest('.btn-reply');
+      if (replyBtn) {
+        const item = replyBtn.closest('.comment-item');
+        if (!item) return;
+        const form = item.querySelector('.reply-form');
+        if (!form) return;
+        form.classList.toggle('d-none');
+        const textarea = form.querySelector('textarea');
+        if (textarea && !form.classList.contains('d-none')) textarea.focus();
+        return;
+      }
+      const toggle = e.target.closest('.btn-toggle-replies');
+      if (toggle) {
+        const target = document.querySelector(toggle.dataset.target);
+        if (!target) return;
+        target.classList.toggle('d-none');
+        // 更新按钮文字简短提示
+        if (target.classList.contains('d-none')) {
+          toggle.textContent = toggle.textContent.replace('收起', '展开');
+        } else {
+          toggle.textContent = toggle.textContent.replace('展开', '收起');
+        }
+      }
+    });
+
+    // 支持评论表单中的文件夹相对路径：为每个 input[name=comment_attachments] 添加 hidden relative_path[index]
+    document.querySelectorAll('input[type=file][name="comment_attachments"]').forEach((input)=>{
+      input.addEventListener('change', (e)=>{
+        const files = Array.from(input.files || []);
+        const form = input.closest('form');
+        if(!form) return;
+        // 清理旧的 relative_path[*]
+        Array.from(form.querySelectorAll('input[name^="relative_path["]')).forEach(el=>el.remove());
+        files.forEach((f, idx)=>{
+          const rel = f.webkitRelativePath || f.relativePath || '';
+          const hidden = document.createElement('input');
+          hidden.type = 'hidden';
+          hidden.name = `relative_path[${idx}]`;
+          hidden.value = rel;
+          form.appendChild(hidden);
+        });
+      });
     });
   });
 })();

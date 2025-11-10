@@ -21,15 +21,25 @@
       <form action="{% url 'learning_logs:edit_entry' entry.id %}" method='post' enctype="multipart/form-data" novalidate>
         {% csrf_token %}
         {% bootstrap_form form show_labels=True %}
-        {# 编辑页：按新需求禁用上传 / 删除 / 下载；仅静态展示 #}
         <div class="mb-3">
-          <h6 class="mb-2">已有附件（只读）</h6>
-          <div class="ll-attachments" data-parent-type="entry" data-parent-id="{{ entry.id }}">
+          <h6 class="mb-2">已有附件</h6>
+          <div class="ll-attachments" data-parent-type="entry" data-parent-id="{{ entry.id }}" {% if user == entry.owner %}data-can-edit="1"{% endif %}>
             <div class="list-group list-group-flush ll-attach-list">
-              {% include 'learning_logs/_attachment_tree.html' with tree=entry.attachment_tree parent_owner=entry.owner base='' allow_modify=False allow_download=False %}
+              {% include 'learning_logs/_attachment_tree.html' with tree=entry.attachment_tree parent_owner=entry.owner base='' allow_modify=True allow_download=True %}
             </div>
+            {% if user == entry.owner %}
+              <div class="mt-2 d-flex gap-2 flex-wrap">
+                <label class="btn btn-outline-primary btn-sm mb-0">
+                  选择文件
+                  <input class="d-none" type="file" multiple>
+                </label>
+                <label class="btn btn-outline-primary btn-sm mb-0">
+                  选择文件夹
+                  <input class="d-none" type="file" multiple webkitdirectory directory>
+                </label>
+              </div>
+            {% endif %}
           </div>
-          <div class="form-text text-muted">当前策略：编辑日记时不可上传 / 删除 / 下载附件。</div>
         </div>
         {# 附件可见性继承所属日记设置，此处无需单独选择 #}
         <div class="d-flex justify-content-between mt-3">

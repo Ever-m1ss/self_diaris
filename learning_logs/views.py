@@ -12,6 +12,7 @@ from .models import Topic, Entry, Comment, Attachment
 import re
 from .forms import TopicForm, EntryForm, CommentForm
 from django.db import transaction
+from django.utils import timezone
 
 
 def index(request):
@@ -92,6 +93,14 @@ def topic(request, topic_name, username=None):
     # 为每个 entry 构建附件树
     for entry in entries:
         entry.attachment_tree = build_attachment_tree(entry.attachment_set.all())
+        # 为该 entry 下的每条评论构建附件树与编辑权限标志
+        for c in entry.comment_set.all():
+            try:
+                c.attachment_tree = build_attachment_tree(c.attachment_set.all())
+            except Exception:
+                c.attachment_tree = {}
+            # 评论附件的编辑权限：评论作者或日记作者可修改
+            c.allow_modify = bool((c.user and c.user == request.user) or (entry.owner == request.user))
 
     # 为 topic 本身构建附件树
     topic.attachment_tree = build_attachment_tree(topic.attachment_set.all())
@@ -118,6 +127,13 @@ def discovey(request, topic_name, username=None):
     # 为每个 entry 构建附件树
     for entry in entries:
         entry.attachment_tree = build_attachment_tree(entry.attachment_set.all())
+        # 为该 entry 下的每条评论构建附件树与编辑权限标志
+        for c in entry.comment_set.all():
+            try:
+                c.attachment_tree = build_attachment_tree(c.attachment_set.all())
+            except Exception:
+                c.attachment_tree = {}
+            c.allow_modify = bool((c.user and c.user == request.user) or (entry.owner == request.user))
 
     # 为 topic 本身构建附件树
     topic.attachment_tree = build_attachment_tree(topic.attachment_set.all())
@@ -218,6 +234,13 @@ def edit_entry(request, entry_id):
         form = EntryForm(instance=entry, data=request.POST)
         if form.is_valid():
             entry = form.save()
+            # 标记最后编辑时间以便在展示时显示“最后编辑于 ...”。始终在用户成功提交编辑后更新。
+            try:
+                entry.last_edited = timezone.now()
+                entry.save()
+            except Exception:
+                # 若时区模块不可用或保存失败，忽略但不要阻止后续操作
+                pass
             # 可在编辑时追加附件（含文件夹）
             files = request.FILES.getlist('attachments')
             rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
@@ -681,6 +704,15 @@ def add_comment(request, entry_id):
     if form.is_valid():
         comment = form.save(commit=False)
         comment.entry = entry
+        # 支持回复（parent），从表单 cleaned_data 中读取 parent_id 并校验归属
+        parent_id = form.cleaned_data.get('parent_id')
+        if parent_id:
+            try:
+                p = Comment.objects.get(id=int(parent_id))
+                if p.entry_id == entry.id:
+                    comment.parent = p
+            except Exception:
+                pass
         # 匿名评论：勾选则不记录用户
         if request.POST.get('anonymous'):
             comment.user = None
@@ -689,6 +721,8 @@ def add_comment(request, entry_id):
             comment.user = request.user
             comment.name = ''
         files = request.FILES.getlist('comment_attachments')
+        # 支持文件夹上传的相对路径映射：relative_path[<index>] = path
+        rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
         # 若文本与附件皆为空，则忽略此次提交
         if (not (comment.text or '').strip()) and not files:
             try:
@@ -698,7 +732,7 @@ def add_comment(request, entry_id):
                 return redirect('learning_logs:topic', topic_name=topic.text)
         comment.save()
         # 保存评论附件（可多文件）
-        _save_attachments_from_request(files, request.user, comment=comment)
+        _save_attachments_from_request(files, request.user, comment=comment, relative_paths=rel_paths)
 
     # Redirect back to discovery view for the topic if available (preserve user-prefixed path)
     try:
@@ -707,6 +741,31 @@ def add_comment(request, entry_id):
         return redirect(url)
     except Exception:
         return redirect('learning_logs:topic', topic_name=topic.text)
+
+
+@login_required
+@require_POST
+def delete_comment(request, comment_id):
+    """删除某条评论（仅评论作者可删）。删除同时清理该评论的所有附件及回复。"""
+    c = get_object_or_404(Comment, id=comment_id)
+    # 仅评论作者可删
+    if c.user != request.user:
+        raise Http404
+    # 删除该评论下的所有附件（Attachment 的 post_delete 会清理文件）
+    for a in c.attachment_set.all():
+        a.delete()
+    # 删除所有子回复（递归删除）
+    def _del_subtree(comment):
+        for r in comment.replies.all():
+            _del_subtree(r)
+            for a in r.attachment_set.all():
+                a.delete()
+            r.delete()
+    _del_subtree(c)
+    c.delete()
+    if request.headers.get('x-requested-with') == 'XMLHttpRequest':
+        return JsonResponse({'ok': True})
+    return redirect(request.META.get('HTTP_REFERER', 'learning_logs:index'))
 
 
 def _resolve_topic_by_name_for_user(topic_name: str, user, username: str = None):

@@ -29,6 +29,8 @@ urlpatterns = [
     path('entries/<int:entry_id>/delete/', views.delete_entry, name='delete_entry'),
     # Add a comment to a public entry.
     path('add_comment/<int:entry_id>/', views.add_comment, name='add_comment'),
+    # 删除评论（仅作者）
+    path('comments/<int:comment_id>/delete/', views.delete_comment, name='delete_comment'),
     # Attachment preview
     path('attachments/preview/<int:attachment_id>/', views.preview_attachment, name='preview_attachment'),
     # Attachment downloads
