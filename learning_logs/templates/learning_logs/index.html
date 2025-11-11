@@ -109,7 +109,7 @@
                           <hr>
                           <h6 class="mb-2">评论</h6>
                           <div class="mb-3">
-                            {% with top_comments=entry.comment_set.filter(parent__isnull=True) %}
+                            {% with top_comments=entry.top_comments %}
                               {% if top_comments.exists %}
                                 <div class="list-group list-group-flush">
                                   {% for c in top_comments %}

@@ -93,6 +93,11 @@ def topic(request, topic_name, username=None):
     # 为每个 entry 构建附件树
     for entry in entries:
         entry.attachment_tree = build_attachment_tree(entry.attachment_set.all())
+        # 预计算顶级评论 QuerySet，模板中直接使用，避免在模板里调用带参数的方法导致解析问题
+        try:
+            entry.top_comments = entry.comment_set.filter(parent__isnull=True)
+        except Exception:
+            entry.top_comments = entry.comment_set.none()
         # 为该 entry 下的每条评论构建附件树与编辑权限标志
         for c in entry.comment_set.all():
             try:
@@ -127,6 +132,11 @@ def discovey(request, topic_name, username=None):
     # 为每个 entry 构建附件树
     for entry in entries:
         entry.attachment_tree = build_attachment_tree(entry.attachment_set.all())
+        # 预计算顶级评论 QuerySet，模板中直接使用，避免在模板里调用带参数的方法导致解析问题
+        try:
+            entry.top_comments = entry.comment_set.filter(parent__isnull=True)
+        except Exception:
+            entry.top_comments = entry.comment_set.none()
         # 为该 entry 下的每条评论构建附件树与编辑权限标志
         for c in entry.comment_set.all():
             try:
