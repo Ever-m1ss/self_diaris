@@ -19,6 +19,12 @@
     .back-btn img{display:block;width:100%;height:100%;}
     .back-btn:hover{transform:translateY(2px);}
     .back-btn:active{transform:translateY(4px);}
+    /* page back container: place page-level back button consistently to the left of the header */
+    .page-back-container{position:relative;}
+    .page-back-container .back-btn{position:absolute;left:0;top:6px;z-index:5}
+    @media (max-width: 576px){
+      .page-back-container .back-btn{left:8px; top:8px}
+    }
   </style>
 </head>
 

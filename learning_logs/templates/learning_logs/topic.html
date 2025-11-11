@@ -1,4 +1,13 @@
 {% extends 'learning_logs/base.html' %}
+{% load static %}
+
+{% block page_back_button %}
+  <div class="page-back-container mb-2">
+    <a class="back-btn" href="{% url 'learning_logs:index' %}" aria-label="返回">
+      <img src="{% static 'img/icons/arrow-left.svg' %}" alt="返回" />
+    </a>
+  </div>
+{% endblock %}
 
 {% block page_header %}
   <div class="topic-header-glass d-flex justify-content-between align-items-center">
