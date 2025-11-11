@@ -39,6 +39,10 @@
   <nav class="navbar navbar-light">
     <div class="container d-flex align-items-center justify-content-between flex-wrap">
       <div class="d-flex align-items-center gap-3 flex-wrap">
+        {# 页面级返回按钮（由子模板覆盖），放在导航左侧，和发现/我的 同一行 #}
+        <div class="me-2 d-flex align-items-center">
+          {% block page_back_button %}{% endblock page_back_button %}
+        </div>
         {% if user.is_authenticated %}
           <ul class="nav nav-pills mb-0 gap-2">
             <li class="nav-item">

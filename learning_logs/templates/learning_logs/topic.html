@@ -2,11 +2,9 @@
 {% load static %}
 
 {% block page_back_button %}
-  <div class="page-back-container mb-2">
-    <a class="back-btn" href="{% url 'learning_logs:index' %}" aria-label="返回">
-      <img src="{% static 'img/icons/arrow-left.svg' %}" alt="返回" />
-    </a>
-  </div>
+  <a class="back-btn" href="{% url 'learning_logs:index' %}" aria-label="返回">
+    <img src="{% static 'img/icons/arrow-left.svg' %}" alt="返回" />
+  </a>
 {% endblock %}
 
 {% block page_header %}

@@ -44,14 +44,12 @@
     <div class="row g-3">
       <div class="col-12 col-lg-4">
         {% block page_back_button %}
-          <div class="page-back-container mb-2">
-            <button type="button" class="back-btn" onclick="history.back();" aria-label="返回">
-              <img src="{% static 'img/icons/arrow-left.svg' %}" alt="返回" />
-            </button>
-          </div>
+          <a class="back-btn" href="{% url 'learning_logs:index' %}" aria-label="返回">
+            <img src="{% static 'img/icons/arrow-left.svg' %}" alt="返回" />
+          </a>
         {% endblock %}
-          <div class="card h-100">
-            <div class="card-body">
+        <div class="card h-100">
+          <div class="card-body">
             <h5 class="card-title">日记本</h5>
             {% if discover_topics %}
               <div class="list-group">
