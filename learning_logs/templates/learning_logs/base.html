@@ -9,7 +9,7 @@
   {% bootstrap_css %}
   {% bootstrap_javascript %}
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
-  {% if user.is_authenticated or (request.resolver_match and request.resolver_match.url_name in ['login','register']) %}
+  {% if user.is_authenticated or request.resolver_match and request.resolver_match.url_name in ['login','register'] %}
     <link rel="preload" href="{{ background_image_url }}" as="image">
   {% endif %}
   {% block extra_head %}{% endblock %}
