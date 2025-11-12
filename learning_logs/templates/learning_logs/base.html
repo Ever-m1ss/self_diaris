@@ -12,8 +12,10 @@
   {% if user.is_authenticated %}
     <link rel="preload" href="{{ background_image_url }}" as="image">
   {% else %}
-    {% if request.resolver_match and (request.resolver_match.url_name == 'login' or request.resolver_match.url_name == 'register') %}
-      <link rel="preload" href="{{ background_image_url }}" as="image">
+    {% if request.resolver_match %}
+      {% if request.resolver_match.url_name == 'login' or request.resolver_match.url_name == 'register' %}
+        <link rel="preload" href="{{ background_image_url }}" as="image">
+      {% endif %}
     {% endif %}
   {% endif %}
   {% block extra_head %}{% endblock %}
