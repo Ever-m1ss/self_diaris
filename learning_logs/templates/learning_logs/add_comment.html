@@ -15,8 +15,8 @@
   <div class="d-flex justify-content-center">
     <div class="card w-100" style="max-width:720px;">
       <div class="card-body">
-        <h5>在《{{ entry.topic.text }}》下的日记中评论</h5>
-        <p class="text-muted">日记标题：{{ entry.date_added|date:'Y-m-d H:i' }}</p>
+  <h5>在《{{ entry.topic.text }}》下的{% if entry.title %}《{{ entry.title }}》{% else %}这篇日记{% endif %}中评论</h5>
+  <p class="text-muted">{% if entry.title %}日记标题：{{ entry.title }}{% else %}日记发布时间：{{ entry.date_added|date:'Y-m-d H:i' }}{% endif %}</p>
         <form action="{% url 'learning_logs:add_comment' entry.id %}" method="post" enctype="multipart/form-data">
           {% csrf_token %}
           {% bootstrap_form form show_labels=True %}

@@ -57,12 +57,17 @@
     <div class="card mb-3">
       <!-- Card header with timestamp and edit link -->
       <h4 class="card-header d-flex justify-content-between align-items-center">
-        <span>
-          发布于 {{ entry.date_added|date:'Y-m-d H:i' }}
-          {% if entry.last_edited and entry.last_edited != entry.date_added %} · 最后编辑于 {{ entry.last_edited|date:'Y-m-d H:i' }}{% endif %}
-          {% if entry.owner == user %}
-            <a href="{% url 'learning_logs:edit_entry' entry.id %}" class="btn btn-sm btn-outline-primary ms-2">编辑日记</a>
+        <span class="entry-header">
+          {% if entry.title %}
+            <div class="entry-title fw-bold">{{ entry.title }}</div>
+          {% else %}
+            <div class="entry-title fw-bold text-muted">（无标题）</div>
           {% endif %}
+          <div class="entry-meta small text-muted">发布于 {{ entry.date_added|date:'Y-m-d H:i' }}{% if entry.last_edited and entry.last_edited != entry.date_added %} · 最后编辑于 {{ entry.last_edited|date:'Y-m-d H:i' }}{% endif %}
+            {% if entry.owner == user %}
+              <a href="{% url 'learning_logs:edit_entry' entry.id %}" class="btn btn-sm btn-outline-primary ms-2">编辑日记</a>
+            {% endif %}
+          </div>
         </span>
         <span>
           {% if entry.is_public %}

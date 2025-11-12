@@ -45,13 +45,17 @@
       <script>
       (function(){
         const ta = document.getElementById('id_text');
+        const title = document.getElementById('id_title');
         const btn = document.getElementById('submitBtn');
         if(!ta || !btn) return;
         function update(){
           const hasText = (ta.value || '').trim().length > 0;
-          btn.disabled = !hasText;
+          const hasTitle = title && (title.value || '').trim().length > 0;
+          // 允许仅填写标题或正文即可提交（附件上传在新建页处于只读/不可上传）
+          btn.disabled = !(hasText || hasTitle);
         }
         ta.addEventListener('input', update);
+        if(title) title.addEventListener('input', update);
         update();
       })();
       </script>

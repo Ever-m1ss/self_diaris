@@ -25,6 +25,8 @@ class Topic(models.Model):
 class Entry(models.Model):
     """Something specific learned about a topic."""
     topic = models.ForeignKey(Topic, on_delete=models.CASCADE)
+    # 可选的日记标题，允许为空
+    title = models.CharField(max_length=255, blank=True, default='')
     text = models.TextField()
     date_added = models.DateTimeField(auto_now_add=True)
     # 记录最后编辑时间（nullable：创建时为空，编辑时由视图设置）
@@ -38,7 +40,12 @@ class Entry(models.Model):
         verbose_name_plural = 'entries'
 
     def __str__(self):
-        """Return a simple string representing the entry."""
+        """Return a simple string representing the entry.
+
+        Prefer to show title when present for easier debugging and listing.
+        """
+        if self.title:
+            return f"{self.title[:60]}"
         return f"{self.text[:50]}..."
 
 

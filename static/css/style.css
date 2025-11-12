@@ -497,6 +497,19 @@ body.home-page::after {
     .replies-container{overflow:hidden; max-height:0; transition:max-height 280ms ease;}
     .replies-container.expanded{max-height:1200px;}
 
+    /* 日记标题样式：黑体大字，日期为小字灰色，用于发现页和话题页条目头部 */
+    .entry-title {
+        font-weight: 800;
+        font-size: 1.125rem; /* 稍大一些 */
+        color: #0f172a;
+        line-height: 1.05;
+    }
+    .entry-meta {
+        margin-top: .15rem;
+        color: rgba(15,23,42,0.6);
+        font-size: .85rem;
+    }
+
     /* 回复条目微间距 */
     .reply-item{margin-top:0.5rem}
     .comment-item + .reply-item{margin-top:0.75rem}

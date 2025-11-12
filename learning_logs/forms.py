@@ -17,14 +17,21 @@ class EntryForm(forms.ModelForm):
         super().__init__(*args, **kwargs)
         # 允许仅上传附件而不填写正文
         self.fields['text'].required = False
+        # 标题可选
+        if 'title' in self.fields:
+            self.fields['title'].required = False
     class Meta:
         model = Entry
-        fields = ['text', 'is_public']
+        fields = ['title', 'text', 'is_public']
         labels = {
+            'title': '日记标题',
             'text': '日记正文',
             'is_public': '是否公开',
         }
-        widgets = {'text': forms.Textarea(attrs={'cols': 80})}
+        widgets = {
+            'title': forms.TextInput(attrs={'placeholder': '可选：为这篇日记添加一个标题'}),
+            'text': forms.Textarea(attrs={'cols': 80}),
+        }
 
 
 class CommentForm(forms.ModelForm):
