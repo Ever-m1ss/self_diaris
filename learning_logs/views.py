@@ -161,6 +161,8 @@ def discovey(request, topic_name, username=None):
         'selected_topic': topic,
         'entries': entries,
         'comment_form': comment_form,
+        # 标记为发现页视图，模板可据此在匿名情况下隐藏首页 hero
+        'is_discovery_view': True,
     }
     return render(request, 'learning_logs/index.html', context)
 
@@ -196,6 +198,7 @@ def public_discovey(request):
         'selected_topic': selected_topic,
         'entries': entries,
         'comment_form': CommentForm(),
+        'is_discovery_view': True,
     }
     return render(request, 'learning_logs/index.html', context)
 

@@ -27,7 +27,7 @@
 {% endblock %}
 
 {% block page_header %}
-  {% if not user.is_authenticated %}
+  {% if not user.is_authenticated and not is_discovery_view %}
     <section class="hero fade-in">
       <h1 class="hero-title">记录你的生活 · 留住灵感瞬间</h1>
       <p class="hero-sub">一个简单、私密、支持多格式附件的个人日记应用。随时随地快速记录，支持文本、图片、音频与视频预览。</p>
@@ -40,7 +40,7 @@
 {% endblock page_header %}
 
 {% block content %}
-  {% if discover_topics %}
+  {% if user.is_authenticated or is_discovery_view %}
     <div class="row g-3">
       <div class="col-12 col-lg-4">
 
