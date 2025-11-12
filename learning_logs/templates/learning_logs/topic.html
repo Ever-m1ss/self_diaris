@@ -126,11 +126,11 @@
                                       </div>
 
                       {# 折叠的直接回复列表（仅顶级评论的直接回复显示为折叠列表） #}
-                                      {% if c.replies.exists %}
-                                      <div id="replies-{{ c.id }}" class="mt-2 ms-3 d-none">
-                                        <div class="list-group list-group-flush">
-                                          {% for r in c.replies.all %}
-                                            <div class="list-group-item reply-item">
+                      {% if c.replies.exists %}
+                        <div id="replies-{{ c.id }}" class="replies-container mt-2 ms-3">
+                          <div class="list-group list-group-flush">
+                            {% for r in c.replies.all %}
+                              <div class="list-group-item reply-item">
                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                   <div class="fw-semibold">{{ r.display_name }}</div>
                                   <div class="small text-muted">{{ r.date_added|date:'Y-m-d H:i' }}</div>
@@ -189,29 +189,4 @@
 
 {% endblock content %}
 
-{% block extra_head %}
-  <style>
-    .ll-attachment-item:last-child{border-bottom:0}
-    .ll-attach-icon{width:20px}
-    .ll-folder-row{cursor:pointer; user-select:none;}
-    .ll-folder-row.collapsed + .ll-folder-children{display:none;}
-    .ll-caret-icon{width:12px; opacity:.7;}
-    .ll-folder-row:hover{background:rgba(255,255,255,.05);}
-    .ll-folder-children .ll-folder-children{margin-left:.5rem;}
-  </style>
-  {% load static %}
-  {# 为避免 Manifest 模式下硬编码 /static 路径导致找不到哈希文件，这里预先解析所有可能用到的图标地址供前端使用 #}
-  <script>
-    window.LL_ICON_URLS = {
-      folder: "{% static 'img/icons/folder.svg' %}",
-      file_image: "{% static 'img/icons/file-image.svg' %}",
-      file_play: "{% static 'img/icons/file-play.svg' %}",
-      file_music: "{% static 'img/icons/file-music.svg' %}",
-      file_text: "{% static 'img/icons/file-text.svg' %}",
-      file_earmark: "{% static 'img/icons/file-earmark.svg' %}",
-      caret_right: "{% static 'img/icons/caret-right.svg' %}",
-      caret_down: "{% static 'img/icons/caret-down.svg' %}",
-    };
-  </script>
-  <script src="{% static 'js/attachments.js' %}" defer></script>
-{% endblock %}
+{% block extra_head %}{% endblock %}

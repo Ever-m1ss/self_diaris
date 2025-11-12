@@ -173,7 +173,7 @@
     return map[key] || '';
   }
   // 创建单个文件夹行 + 子容器
-  function createFolderRow(name){
+  function createFolderRow(name, canEdit){
     const row = document.createElement('div');
     row.className='list-group-item list-group-item-action d-flex align-items-center ll-attachment-item ll-folder-row collapsed';
     row.dataset.folderName=name;
@@ -196,7 +196,6 @@
     meta.textContent='文件夹';
     row.appendChild(meta);
     // 如果父容器允许编辑（ll-attachments 有 data-can-edit），添加删除按钮
-    const canEdit = row.closest('.ll-attachments')?.dataset.canEdit;
     if (canEdit) {
       const delBtn = document.createElement('button');
       delBtn.type='button';
@@ -226,7 +225,8 @@
         }
       }
       if(!foundRow){
-        const created=createFolderRow(name);
+        const canEdit = rootContainer.closest('.ll-attachments')?.dataset.canEdit;
+        const created=createFolderRow(name, canEdit);
         const inputContainer=rootContainer===container?rootContainer.querySelector('.mt-2'):null;
         if(inputContainer){
           container.insertBefore(created.row,inputContainer);
@@ -370,14 +370,13 @@
   document.addEventListener('DOMContentLoaded', ()=>{
     document.querySelectorAll('.ll-attachments').forEach(enhanceWrapper);
     bindGlobalClicks();
-    // 目录展开/折叠逻辑（GitHub 风格）
+    // 目录展开/折叠逻辑（简化版 — 取消动画，保证兼容性）
     document.addEventListener('click', (e) => {
       const row = e.target.closest('.ll-folder-row');
       if (!row) return;
       // 如果点击的是操作按钮（删除/下载）不要触发折叠
       if (e.target.closest('.ll-folder-del') || e.target.closest('.ll-folder-dl')) return;
-      // 某些模板/渲染情况下，子容器可能不是紧邻的下一个元素（或有注释/文本节点），
-      // 此处向后查找第一个匹配的 .ll-folder-children 元素，增强兼容性。
+      // 查找紧邻或后续的 .ll-folder-children 元素作为子容器
       let children = row.nextElementSibling;
       if (!children || !children.classList.contains('ll-folder-children')){
         let sib = row.nextElementSibling;
@@ -393,24 +392,14 @@
       if (collapsed) {
         row.classList.remove('collapsed');
         children.classList.remove('d-none');
-        // 尝试使用全局映射的图标（生产环境下为哈希路径）
-        if (caret) {
-          if (window.LL_ICON_URLS && window.LL_ICON_URLS.caret_down) {
-            caret.src = window.LL_ICON_URLS.caret_down;
-          } else {
-            // 回退：如果当前是 caret_right.svg，替换为 caret_down.svg
-            caret.src = caret.src.replace('caret-right', 'caret-down');
-          }
+        if (caret && window.LL_ICON_URLS && window.LL_ICON_URLS.caret_down) {
+          caret.src = window.LL_ICON_URLS.caret_down;
         }
       } else {
         row.classList.add('collapsed');
         children.classList.add('d-none');
-        if (caret) {
-          if (window.LL_ICON_URLS && window.LL_ICON_URLS.caret_right) {
-            caret.src = window.LL_ICON_URLS.caret_right;
-          } else {
-            caret.src = caret.src.replace('caret-down', 'caret-right');
-          }
+        if (caret && window.LL_ICON_URLS && window.LL_ICON_URLS.caret_right) {
+          caret.src = window.LL_ICON_URLS.caret_right;
         }
       }
     });
@@ -431,53 +420,18 @@
       if (toggle) {
         const target = document.querySelector(toggle.dataset.target);
         if (!target) return;
-        // 使用平滑 max-height 过渡展开/收起
         const count = target.querySelectorAll('.list-group-item').length || 0;
-        const isExpanded = target.classList.contains('expanded');
-        // Ensure target has replies-container class
-        if (!target.classList.contains('replies-container')) {
-          target.classList.add('replies-container');
-        }
-        if (isExpanded) {
-          // collapse: animate from current height -> 0, then hide with d-none
-          const height = target.scrollHeight;
-          target.style.maxHeight = height + 'px';
-          // allow the style to take effect
-          requestAnimationFrame(() => {
-            target.style.maxHeight = '0px';
-            target.classList.remove('expanded');
-          });
-          // after transition end, ensure we hide via d-none to remove from flow
-          const onCollapseEnd = function () {
-            target.classList.add('d-none');
-            target.removeEventListener('transitionend', onCollapseEnd);
-          };
-          target.addEventListener('transitionend', onCollapseEnd);
-          toggle.textContent = `展开回复 (${count})`;
-          toggle.setAttribute('aria-expanded', 'false');
-        } else {
-          // expand: remove d-none so scrollHeight can be measured, then animate
+        const isHidden = target.classList.contains('d-none');
+        if (isHidden) {
           target.classList.remove('d-none');
-          // Ensure replies-container class for CSS transitions
-          target.classList.add('replies-container');
-          target.classList.add('expanded');
-          // start from 0 to trigger transition
-          target.style.maxHeight = '0px';
-          requestAnimationFrame(() => {
-            const full = target.scrollHeight + 16; // small cushion
-            target.style.maxHeight = full + 'px';
-          });
           toggle.textContent = `收起回复 (${count})`;
           toggle.setAttribute('aria-expanded', 'true');
-          // cleanup after transition to allow dynamic height
-          const onExpandEnd = function te() {
-            if (target.classList.contains('expanded')) {
-              target.style.maxHeight = '';
-            }
-            target.removeEventListener('transitionend', onExpandEnd);
-          };
-          target.addEventListener('transitionend', onExpandEnd);
+        } else {
+          target.classList.add('d-none');
+          toggle.textContent = `展开回复 (${count})`;
+          toggle.setAttribute('aria-expanded', 'false');
         }
+        return;
       }
     });
 
