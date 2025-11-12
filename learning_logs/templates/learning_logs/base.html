@@ -9,7 +9,7 @@
   {% bootstrap_css %}
   {% bootstrap_javascript %}
   <link rel="stylesheet" href="{% static 'css/style.css' %}">
-  {% if user.is_authenticated or request.resolver_match.url_name in 'login,register' %}
+  {% if user.is_authenticated or (request.resolver_match and request.resolver_match.url_name in 'login,register') %}
     <link rel="preload" href="{{ background_image_url }}" as="image">
   {% endif %}
   {% block extra_head %}{% endblock %}
@@ -29,7 +29,7 @@
 </head>
 
 <body class="page-is-loading {% if user.is_authenticated %}logged-in{% endif %} {% block body_class %}{% endblock %}"
-  {% if not user.is_authenticated and request.resolver_match.url_name == 'index' %}
+  {% if not user.is_authenticated and request.resolver_match and request.resolver_match.url_name == 'index' %}
     style="background:#000;"
   {% else %}
     style="--ll-bg-image: url('{{ background_image_url }}');"
@@ -46,10 +46,10 @@
         {% if user.is_authenticated %}
           <ul class="nav nav-pills mb-0 gap-2">
             <li class="nav-item">
-              <a class="nav-link {% if request.resolver_match.url_name == 'index' %}active{% endif %}" href="{% url 'learning_logs:index' %}">发现</a>
+              <a class="nav-link {% if request.resolver_match and request.resolver_match.url_name == 'index' %}active{% endif %}" href="{% url 'learning_logs:index' %}">发现</a>
             </li>
             <li class="nav-item">
-              <a class="nav-link {% if request.resolver_match.url_name == 'topics' %}active{% endif %}" href="{% url 'learning_logs:topics' %}">我的</a>
+              <a class="nav-link {% if request.resolver_match and request.resolver_match.url_name == 'topics' %}active{% endif %}" href="{% url 'learning_logs:topics' %}">我的</a>
             </li>
           </ul>
         {% endif %}

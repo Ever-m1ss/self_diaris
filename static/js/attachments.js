@@ -439,21 +439,29 @@
           target.classList.add('replies-container');
         }
         if (isExpanded) {
-          // collapse
+          // collapse: animate from current height -> 0, then hide with d-none
           const height = target.scrollHeight;
-          // set explicit height then animate to 0
           target.style.maxHeight = height + 'px';
           // allow the style to take effect
           requestAnimationFrame(() => {
             target.style.maxHeight = '0px';
             target.classList.remove('expanded');
           });
+          // after transition end, ensure we hide via d-none to remove from flow
+          const onCollapseEnd = function () {
+            target.classList.add('d-none');
+            target.removeEventListener('transitionend', onCollapseEnd);
+          };
+          target.addEventListener('transitionend', onCollapseEnd);
           toggle.textContent = `展开回复 (${count})`;
           toggle.setAttribute('aria-expanded', 'false');
         } else {
-          // expand
+          // expand: remove d-none so scrollHeight can be measured, then animate
+          target.classList.remove('d-none');
+          // Ensure replies-container class for CSS transitions
+          target.classList.add('replies-container');
           target.classList.add('expanded');
-          // remove inline max-height to allow CSS to use large value; but set to 0 first to trigger transition
+          // start from 0 to trigger transition
           target.style.maxHeight = '0px';
           requestAnimationFrame(() => {
             const full = target.scrollHeight + 16; // small cushion
@@ -462,12 +470,13 @@
           toggle.textContent = `收起回复 (${count})`;
           toggle.setAttribute('aria-expanded', 'true');
           // cleanup after transition to allow dynamic height
-          target.addEventListener('transitionend', function te(){
-            if (target.classList.contains('expanded')){
+          const onExpandEnd = function te() {
+            if (target.classList.contains('expanded')) {
               target.style.maxHeight = '';
             }
-            target.removeEventListener('transitionend', te);
-          });
+            target.removeEventListener('transitionend', onExpandEnd);
+          };
+          target.addEventListener('transitionend', onExpandEnd);
         }
       }
     });
