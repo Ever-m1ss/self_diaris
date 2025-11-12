@@ -421,13 +421,14 @@
         const target = document.querySelector(toggle.dataset.target);
         if (!target) return;
         const count = target.querySelectorAll('.list-group-item').length || 0;
-        const isHidden = target.classList.contains('d-none');
-        if (isHidden) {
-          target.classList.remove('d-none');
+        // 新的展开/收起逻辑基于 CSS 的 .replies-container.expanded 动画
+        const isExpanded = target.classList.contains('expanded');
+        if (!isExpanded) {
+          target.classList.add('expanded');
           toggle.textContent = `收起回复 (${count})`;
           toggle.setAttribute('aria-expanded', 'true');
         } else {
-          target.classList.add('d-none');
+          target.classList.remove('expanded');
           toggle.textContent = `展开回复 (${count})`;
           toggle.setAttribute('aria-expanded', 'false');
         }
