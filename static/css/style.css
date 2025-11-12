@@ -490,7 +490,10 @@ body.home-page::after {
     .ll-attachment-item .fw-semibold a:hover { text-decoration:underline; }
 
     /* 评论区背景和回复过渡 */
-    .comment-area{background: linear-gradient(180deg, rgba(255,250,220,0.9), rgba(255,250,220,0.85)); padding:1rem; border-radius:12px;}
+    /* 评论区背景与日记卡片一致，单条评论有独立的浅黄色底色，回复为浅绿色 */
+    .comment-area{background: transparent; padding:1rem; border-radius:12px;}
+    .comment-item { background: rgba(255, 250, 220, 0.9); border: 1px solid rgba(220,200,150,0.18); }
+    .reply-item { background: rgba(235, 255, 235, 0.96); border: 1px solid rgba(180,220,180,0.12); }
     .replies-container{overflow:hidden; max-height:0; transition:max-height 280ms ease;}
     .replies-container.expanded{max-height:1200px;}
 

@@ -719,6 +719,16 @@ def add_comment(request, entry_id):
         })
 
     form = CommentForm(data=request.POST)
+    # If form is invalid, show the form with errors instead of silently redirecting.
+    if not form.is_valid():
+        parent_id = request.POST.get('parent_id')
+        return render(request, 'learning_logs/add_comment.html', {
+            'entry': entry,
+            'topic': topic,
+            'form': form,
+            'parent_id': parent_id,
+        })
+
     if form.is_valid():
         comment = form.save(commit=False)
         comment.entry = entry
@@ -731,11 +741,14 @@ def add_comment(request, entry_id):
                     comment.parent = p
             except Exception:
                 pass
-        # 匿名评论：勾选则不记录用户
-        if request.POST.get('anonymous'):
+        # 匿名评论：优先使用表单 cleaned_data（更安全）
+        anonymous = form.cleaned_data.get('anonymous', False)
+        if anonymous:
             comment.user = None
-            comment.name = '匿名'
+            # 留空 name，models.display_name 会回退为 '匿名' 或 name 字段
+            comment.name = ''
         else:
+            # 使用登录用户作为评论者
             comment.user = request.user
             comment.name = ''
         files = request.FILES.getlist('comment_attachments')

@@ -20,7 +20,6 @@
         <form action="{% url 'learning_logs:add_comment' entry.id %}" method="post" enctype="multipart/form-data">
           {% csrf_token %}
           {% bootstrap_form form show_labels=True %}
-          <input type="hidden" name="parent_id" value="{{ parent_id }}">
           <div class="d-flex justify-content-between mt-3">
             <a href="{% url 'learning_logs:topic_by_user' entry.topic.owner.username entry.topic.text %}" class="btn btn-outline-secondary">取消</a>
             <button type="submit" class="btn btn-primary">发布评论</button>
