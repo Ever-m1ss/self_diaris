@@ -1,5 +1,5 @@
 {% extends 'learning_logs/base.html' %}
-{% load django_bootstrap5 %}
+{% load django_bootstrap5 static %}
 
 {% block page_back_button %}
   <a class="back-btn" href="{% url 'learning_logs:topic_by_user' entry.topic.owner.username entry.topic.text %}" aria-label="返回">

@@ -1,4 +1,5 @@
 {% extends "learning_logs/base.html" %}
+{% load static %}
 
 {% block page_back_button %}
   <a class="back-btn" href="{% url 'learning_logs:topic_by_user' topic.owner.username topic.text %}" aria-label="返回">
