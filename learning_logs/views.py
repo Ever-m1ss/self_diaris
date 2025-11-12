@@ -17,33 +17,38 @@ from django.utils import timezone
 
 def index(request):
     """Home page: 未登录展示登录/注册；已登录展示“发现”：左侧日记本列表，右侧浏览所选日记本下的日记。"""
-    context = {}
+    # 左侧日记本：已登录用户看到自己 + 公开，未登录用户仅看到公开
     if request.user.is_authenticated:
-        # 可发现的日记本：自己的全部 + 他人公开
         topics_qs = Topic.objects.filter(Q(owner=request.user) | Q(is_public=True)).order_by('-date_added')
+    else:
+        topics_qs = Topic.objects.filter(is_public=True).order_by('-date_added')
 
-        # 选中的日记本
-        selected_topic = None
-        t_id = request.GET.get('t')
-        if t_id:
-            try:
-                selected_topic = topics_qs.get(id=int(t_id))
-            except Exception:
-                selected_topic = None
+    # 选中的日记本：支持通过 ?t=<id> 指定；若未指定，则默认选择第一个（便于匿名用户点击“立即开始”后看到内容）
+    selected_topic = None
+    t_id = request.GET.get('t')
+    if t_id:
+        try:
+            selected_topic = topics_qs.get(id=int(t_id))
+        except Exception:
+            selected_topic = None
 
-        # 右侧日记列表：若无选中则为空
-        entries = None
-        if selected_topic is not None:
-            if request.user == selected_topic.owner:
-                entries = selected_topic.entry_set.order_by('-date_added')
-            else:
-                entries = selected_topic.entry_set.filter(Q(is_public=True) | Q(owner=request.user)).order_by('-date_added')
+    if selected_topic is None and topics_qs.exists():
+        selected_topic = topics_qs.first()
 
-        context.update({
-            'discover_topics': topics_qs,
-            'selected_topic': selected_topic,
-            'entries': entries,
-        })
+    # 右侧日记列表：若无选中则为空
+    entries = None
+    if selected_topic is not None:
+        if request.user.is_authenticated and request.user == selected_topic.owner:
+            entries = selected_topic.entry_set.order_by('-date_added')
+        else:
+            # 对于未登录或非作者用户，仅展示公开或属于当前用户（若登录）的日记
+            entries = selected_topic.entry_set.filter(Q(is_public=True) | Q(owner=request.user) if request.user.is_authenticated else Q(is_public=True)).order_by('-date_added')
+
+    context = {
+        'discover_topics': topics_qs,
+        'selected_topic': selected_topic,
+        'entries': entries,
+    }
     return render(request, 'learning_logs/index.html', context)
 
 @login_required
