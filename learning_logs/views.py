@@ -78,7 +78,6 @@ def build_attachment_tree(attachments):
     return tree
 
 
-@login_required
 def topic(request, topic_name, username=None):
     """按名称展示单个日记本及其日记，遵循可见性规则。"""
     # If username provided, prefer topic owned by that username
@@ -115,7 +114,6 @@ def topic(request, topic_name, username=None):
     return render(request, 'learning_logs/topic.html', context)
 
 
-@login_required
 def discovey(request, topic_name, username=None):
     """Discovery route: render the same layout as index but for a specific topic name.
     This is used from the "发现" page and is read-only (no edit links shown there).
@@ -150,14 +148,49 @@ def discovey(request, topic_name, username=None):
 
     comment_form = CommentForm()
 
-    # 左侧的可发现日记本列表
-    topics_qs = Topic.objects.filter(Q(owner=request.user) | Q(is_public=True)).order_by('-date_added')
+    # 左侧的可发现日记本列表（兼容匿名用户）
+    topics_qs = Topic.objects.filter(Q(owner=request.user) | Q(is_public=True)).order_by('-date_added') if request.user.is_authenticated else Topic.objects.filter(is_public=True).order_by('-date_added')
 
     context = {
         'discover_topics': topics_qs,
         'selected_topic': topic,
         'entries': entries,
         'comment_form': comment_form,
+    }
+    return render(request, 'learning_logs/index.html', context)
+
+
+def public_discovey(request):
+    """Public discovery landing: allow anonymous users to browse public topics and entries.
+
+    This renders the same layout as index/discovey but selects the first public topic by default
+    so the left topic list and right entry column are populated for unauthenticated visitors.
+    """
+    # public topics only
+    topics_qs = Topic.objects.filter(is_public=True).order_by('-date_added')
+    selected_topic = topics_qs.first() if topics_qs.exists() else None
+
+    entries = None
+    if selected_topic:
+        entries = selected_topic.entry_set.filter(is_public=True).order_by('-date_added')
+        for entry in entries:
+            entry.attachment_tree = build_attachment_tree(entry.attachment_set.all())
+            try:
+                entry.top_comments = entry.comment_set.filter(parent__isnull=True)
+            except Exception:
+                entry.top_comments = entry.comment_set.none()
+            for c in entry.comment_set.all():
+                try:
+                    c.attachment_tree = build_attachment_tree(c.attachment_set.all())
+                except Exception:
+                    c.attachment_tree = {}
+                c.allow_modify = False
+
+    context = {
+        'discover_topics': topics_qs,
+        'selected_topic': selected_topic,
+        'entries': entries,
+        'comment_form': CommentForm(),
     }
     return render(request, 'learning_logs/index.html', context)
 

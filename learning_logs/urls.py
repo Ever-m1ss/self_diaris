@@ -17,6 +17,8 @@ urlpatterns = [
     # Username-prefixed routes for clearer per-user URLs
     path('<str:username>/topics/<path:topic_name>/', views.topic, name='topic_by_user'),
     path('<str:username>/discovey/<path:topic_name>/', views.discovey, name='discovey_by_user'),
+    # Public discovery landing: show public topics and default topic entries without login
+    path('discovey/', views.public_discovey, name='discovey_home'),
     # Discovery view: URL used from "发现" for browsing a topic (read-only, no edit button)
     path('discovey/<path:topic_name>/', views.discovey, name='discovey'),
     # Page for adding a new topic.
