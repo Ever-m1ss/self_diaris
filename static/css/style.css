@@ -489,5 +489,18 @@ body.home-page::after {
     .ll-attachment-item .fw-semibold a { text-decoration:none; }
     .ll-attachment-item .fw-semibold a:hover { text-decoration:underline; }
 
+    /* 评论区背景和回复过渡 */
+    .comment-area{background: linear-gradient(180deg, rgba(255,250,220,0.9), rgba(255,250,220,0.85)); padding:1rem; border-radius:12px;}
+    .replies-container{overflow:hidden; max-height:0; transition:max-height 280ms ease;}
+    .replies-container.expanded{max-height:1200px;}
+
+    /* 回复条目微间距 */
+    .reply-item{margin-top:0.5rem}
+    .comment-item + .reply-item{margin-top:0.75rem}
+
+/* 评论与回复间距调整 */
+.reply-item{margin-top:0.5rem}
+.comment-item + .reply-item{margin-top:0.75rem}
+
 
 

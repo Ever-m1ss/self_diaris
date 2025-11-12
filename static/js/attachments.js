@@ -376,18 +376,42 @@
       if (!row) return;
       // 如果点击的是操作按钮（删除/下载）不要触发折叠
       if (e.target.closest('.ll-folder-del') || e.target.closest('.ll-folder-dl')) return;
-      const children = row.nextElementSibling;
-      if (!children || !children.classList.contains('ll-folder-children')) return;
+      // 某些模板/渲染情况下，子容器可能不是紧邻的下一个元素（或有注释/文本节点），
+      // 此处向后查找第一个匹配的 .ll-folder-children 元素，增强兼容性。
+      let children = row.nextElementSibling;
+      if (!children || !children.classList.contains('ll-folder-children')){
+        let sib = row.nextElementSibling;
+        children = null;
+        while(sib){
+          if (sib.classList && sib.classList.contains('ll-folder-children')){ children = sib; break; }
+          sib = sib.nextElementSibling;
+        }
+      }
+      if (!children) return;
       const caret = row.querySelector('.ll-caret-icon');
       const collapsed = row.classList.contains('collapsed');
       if (collapsed) {
         row.classList.remove('collapsed');
         children.classList.remove('d-none');
-        if (caret && window.LL_ICON_URLS) caret.src = window.LL_ICON_URLS.caret_down;
+        // 尝试使用全局映射的图标（生产环境下为哈希路径）
+        if (caret) {
+          if (window.LL_ICON_URLS && window.LL_ICON_URLS.caret_down) {
+            caret.src = window.LL_ICON_URLS.caret_down;
+          } else {
+            // 回退：如果当前是 caret_right.svg，替换为 caret_down.svg
+            caret.src = caret.src.replace('caret-right', 'caret-down');
+          }
+        }
       } else {
         row.classList.add('collapsed');
         children.classList.add('d-none');
-        if (caret && window.LL_ICON_URLS) caret.src = window.LL_ICON_URLS.caret_right;
+        if (caret) {
+          if (window.LL_ICON_URLS && window.LL_ICON_URLS.caret_right) {
+            caret.src = window.LL_ICON_URLS.caret_right;
+          } else {
+            caret.src = caret.src.replace('caret-down', 'caret-right');
+          }
+        }
       }
     });
     // 评论交互：回复表单显示/隐藏 与 展开/收起直接回复列表
@@ -407,12 +431,43 @@
       if (toggle) {
         const target = document.querySelector(toggle.dataset.target);
         if (!target) return;
-        target.classList.toggle('d-none');
-        // 更新按钮文字简短提示
-        if (target.classList.contains('d-none')) {
-          toggle.textContent = toggle.textContent.replace('收起', '展开');
+        // 使用平滑 max-height 过渡展开/收起
+        const count = target.querySelectorAll('.list-group-item').length || 0;
+        const isExpanded = target.classList.contains('expanded');
+        // Ensure target has replies-container class
+        if (!target.classList.contains('replies-container')) {
+          target.classList.add('replies-container');
+        }
+        if (isExpanded) {
+          // collapse
+          const height = target.scrollHeight;
+          // set explicit height then animate to 0
+          target.style.maxHeight = height + 'px';
+          // allow the style to take effect
+          requestAnimationFrame(() => {
+            target.style.maxHeight = '0px';
+            target.classList.remove('expanded');
+          });
+          toggle.textContent = `展开回复 (${count})`;
+          toggle.setAttribute('aria-expanded', 'false');
         } else {
-          toggle.textContent = toggle.textContent.replace('展开', '收起');
+          // expand
+          target.classList.add('expanded');
+          // remove inline max-height to allow CSS to use large value; but set to 0 first to trigger transition
+          target.style.maxHeight = '0px';
+          requestAnimationFrame(() => {
+            const full = target.scrollHeight + 16; // small cushion
+            target.style.maxHeight = full + 'px';
+          });
+          toggle.textContent = `收起回复 (${count})`;
+          toggle.setAttribute('aria-expanded', 'true');
+          // cleanup after transition to allow dynamic height
+          target.addEventListener('transitionend', function te(){
+            if (target.classList.contains('expanded')){
+              target.style.maxHeight = '';
+            }
+            target.removeEventListener('transitionend', te);
+          });
         }
       }
     });

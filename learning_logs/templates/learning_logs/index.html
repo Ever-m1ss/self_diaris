@@ -43,11 +43,7 @@
   {% if user.is_authenticated %}
     <div class="row g-3">
       <div class="col-12 col-lg-4">
-        {% block page_back_button %}
-          <a class="back-btn" href="{% url 'learning_logs:index' %}" aria-label="返回">
-            <img src="{% static 'img/icons/arrow-left.svg' %}" alt="返回" />
-          </a>
-        {% endblock %}
+
         <div class="card h-100">
           <div class="card-body">
             <h5 class="card-title">日记本</h5>
@@ -110,7 +106,7 @@
                         {% if entry.is_public or entry.owner == user %}
                           <hr>
                           <h6 class="mb-2">评论</h6>
-                          <div class="mb-3">
+                          <div class="mb-3 comment-area p-3">
                             {% with top_comments=entry.top_comments %}
                               {% if top_comments.exists %}
                                 <div class="list-group list-group-flush">
@@ -136,7 +132,7 @@
                                       {% endwith %}
 
                                       <div class="mt-2 d-flex gap-2">
-                                        <button type="button" class="btn btn-sm btn-outline-secondary btn-reply" data-comment-id="{{ c.id }}">回复</button>
+                                        <a class="btn btn-sm btn-outline-secondary" href="{% url 'learning_logs:add_comment' entry.id %}?parent_id={{ c.id }}">回复</a>
                                         {% if c.user == user %}
                                           <button type="button" class="btn btn-sm btn-outline-danger delete-comment ms-2" data-id="{{ c.id }}">删除</button>
                                         {% endif %}
@@ -146,10 +142,10 @@
                                       </div>
 
                                       {% if c.replies.exists %}
-                                        <div id="replies-{{ c.id }}" class="mt-2 ms-3 d-none">
+                                        <div id="replies-{{ c.id }}" class="replies-container mt-2 ms-3">
                                           <div class="list-group list-group-flush">
                                             {% for r in c.replies.all %}
-                                              <div class="list-group-item">
+                                              <div class="list-group-item reply-item">
                                                 <div class="d-flex justify-content-between align-items-center mb-1">
                                                   <div class="fw-semibold">{{ r.display_name }}</div>
                                                   <div class="small text-muted">{{ r.date_added|date:'Y-m-d H:i' }}</div>
@@ -180,18 +176,6 @@
                                         </div>
                                       {% endif %}
 
-                                      <div class="reply-form mt-2 d-none">
-                                        <form action="{% url 'learning_logs:add_comment' entry.id %}" method="post" class="d-flex gap-2 align-items-start">
-                                          {% csrf_token %}
-                                          <input type="hidden" name="parent_id" value="{{ c.id }}">
-                                          <div class="flex-grow-1">
-                                            <textarea name="text" class="form-control" rows="2" placeholder="回复 @{{ c.display_name }}"></textarea>
-                                          </div>
-                                          <div class="d-flex flex-column align-items-end">
-                                            <button class="btn btn-sm btn-primary" type="submit">回复</button>
-                                          </div>
-                                        </form>
-                                      </div>
                                     </div>
                                   {% endfor %}
                                 </div>
@@ -200,24 +184,10 @@
                               {% endif %}
                             {% endwith %}
 
-                            <form action="{% url 'learning_logs:add_comment' entry.id %}" method="post" enctype="multipart/form-data" class="mt-2">
-                              {% csrf_token %}
-                              <div class="mb-2">
-                                <label class="form-label" for="text-{{ entry.id }}">评论内容</label>
-                                <textarea name="text" id="text-{{ entry.id }}" class="form-control" rows="3"></textarea>
-                              </div>
-                              <div class="form-check mb-2">
-                                <input class="form-check-input" type="checkbox" name="anonymous" id="anonymous-{{ entry.id }}">
-                                <label class="form-check-label" for="anonymous-{{ entry.id }}">匿名评论</label>
-                              </div>
-                              <div class="mb-2">
-                                <label class="form-label">附件（可选，可多选）</label>
-                                <input class="form-control" type="file" name="comment_attachments" multiple>
-                              </div>
-                              <div class="text-end">
-                                <button class="btn btn-outline-primary btn-sm" type="submit">发布评论</button>
-                              </div>
-                            </form>
+                            <div class="text-end mt-2">
+                              <a class="btn btn-outline-primary btn-sm" href="{% url 'learning_logs:add_comment' entry.id %}">发表评论</a>
+                            </div>
+                          </div>
                         {% endif %}
                       </div>
                     </div>

@@ -707,8 +707,16 @@ def add_comment(request, entry_id):
     if not entry.is_public and entry.owner != request.user:
         raise Http404
 
-    if request.method != 'POST':
-        raise Http404
+    # 支持 GET 展示单独的评论页面（统一在单页进行评论输入/提交）
+    if request.method == 'GET':
+        parent_id = request.GET.get('parent_id')
+        form = CommentForm(initial={'parent_id': parent_id} if parent_id else None)
+        return render(request, 'learning_logs/add_comment.html', {
+            'entry': entry,
+            'topic': topic,
+            'form': form,
+            'parent_id': parent_id,
+        })
 
     form = CommentForm(data=request.POST)
     if form.is_valid():

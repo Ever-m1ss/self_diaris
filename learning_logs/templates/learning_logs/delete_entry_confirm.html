@@ -1,5 +1,11 @@
 {% extends 'learning_logs/base.html' %}
 
+{% block page_back_button %}
+  <a class="back-btn" href="{% url 'learning_logs:topic_by_user' topic.owner.username topic.text %}" aria-label="返回">
+    <img src="{% static 'img/icons/arrow-left.svg' %}" alt="返回" />
+  </a>
+{% endblock %}
+
 {% block page_header %}
   <h2 class="mb-0">确认删除日记</h2>
 {% endblock page_header %}

@@ -1,6 +1,12 @@
 {% extends "learning_logs/base.html" %}
 {% load django_bootstrap5 %}
 
+{% block page_back_button %}
+  <a class="back-btn" href="{% url 'learning_logs:topic_by_user' topic.owner.username topic.text %}" aria-label="返回">
+    <img src="{% static 'img/icons/arrow-left.svg' %}" alt="返回" />
+  </a>
+{% endblock %}
+
 {% block page_header %}
   <div class="d-flex justify-content-between align-items-center">
     <div class="d-flex align-items-center gap-3">
@@ -25,7 +31,7 @@
           <h6 class="mb-2">已有附件</h6>
           <div class="ll-attachments" data-parent-type="entry" data-parent-id="{{ entry.id }}" {% if user == entry.owner %}data-can-edit="1"{% endif %}>
             <div class="list-group list-group-flush ll-attach-list">
-              {% include 'learning_logs/_attachment_tree.html' with tree=entry.attachment_tree parent_owner=entry.owner base='' allow_modify=True allow_download=True %}
+              {% include 'learning_logs/_attachment_tree.html' with tree=entry.attachment_tree parent_owner=entry.owner base='' allow_modify=True allow_download=False %}
             </div>
             {% if user == entry.owner %}
               <div class="mt-2 d-flex gap-2 flex-wrap">

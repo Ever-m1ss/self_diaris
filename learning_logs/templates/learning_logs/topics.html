@@ -1,5 +1,11 @@
 {% extends 'learning_logs/base.html' %}
 
+{% block page_back_button %}
+  <a class="back-btn" href="{% url 'learning_logs:index' %}" aria-label="返回">
+    <img src="{% static 'img/icons/arrow-left.svg' %}" alt="返回" />
+  </a>
+{% endblock %}
+
 {% block page_header %}
   <div class="topic-header-glass d-flex align-items-center justify-content-between flex-wrap gap-3">
     <h1 class="mb-0 topic-title">日记本</h1>

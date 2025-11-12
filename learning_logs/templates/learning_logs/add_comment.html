@@ -1,0 +1,32 @@
+{% extends 'learning_logs/base.html' %}
+{% load django_bootstrap5 %}
+
+{% block page_back_button %}
+  <a class="back-btn" href="{% url 'learning_logs:topic_by_user' entry.topic.owner.username entry.topic.text %}" aria-label="返回">
+    <img src="{% static 'img/icons/arrow-left.svg' %}" alt="返回" />
+  </a>
+{% endblock %}
+
+{% block page_header %}
+  <h2 class="mb-0">发表评论</h2>
+{% endblock page_header %}
+
+{% block content %}
+  <div class="d-flex justify-content-center">
+    <div class="card w-100" style="max-width:720px;">
+      <div class="card-body">
+        <h5>在《{{ entry.topic.text }}》下的日记中评论</h5>
+        <p class="text-muted">日记标题：{{ entry.date_added|date:'Y-m-d H:i' }}</p>
+        <form action="{% url 'learning_logs:add_comment' entry.id %}" method="post" enctype="multipart/form-data">
+          {% csrf_token %}
+          {% bootstrap_form form show_labels=True %}
+          <input type="hidden" name="parent_id" value="{{ parent_id }}">
+          <div class="d-flex justify-content-between mt-3">
+            <a href="{% url 'learning_logs:topic_by_user' entry.topic.owner.username entry.topic.text %}" class="btn btn-outline-secondary">取消</a>
+            <button type="submit" class="btn btn-primary">发布评论</button>
+          </div>
+        </form>
+      </div>
+    </div>
+  </div>
+{% endblock content %}

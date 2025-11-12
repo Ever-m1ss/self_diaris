@@ -1,11 +1,17 @@
 {% extends "learning_logs/base.html" %}
 
+{% block page_back_button %}
+  <a class="back-btn" href="{% url 'learning_logs:topic_by_user' topic.owner.username topic.text %}" aria-label="返回">
+    <img src="{% static 'img/icons/arrow-left.svg' %}" alt="返回" />
+  </a>
+{% endblock %}
+
 {% block page_header %}
   <h2>附件预览：{{ attachment.original_name }}</h2>
 {% endblock page_header %}
 
 {% block content %}
-  <p><a href="{% url 'learning_logs:topic_by_user' topic.owner.username topic.text %}">返回日记本</a></p>
+  {# 返回键已统一放在导航栏左侧，删除页面内的额外返回链接 #}
   <div class="card">
     <div class="card-body">
       <pre class="mb-0" style="white-space: pre-wrap; word-break: break-word;">{{ text }}</pre>
