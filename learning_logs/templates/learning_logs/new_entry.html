@@ -80,11 +80,12 @@
         }
 
         function syncRelativePaths(){
-          // rebuild all relative_path[*] inputs from both file and folder inputs
+          // Build relative_path[*] inputs by iterating file inputs in DOM order.
+          // This ensures indices align with what the browser sends in request.FILES.getlist('attachments').
           removeAllRelativePathInputs();
+          const fileInputs = Array.from(form.querySelectorAll('input[type=file][name="attachments"]'));
           const files = [];
-          if(folderInput && folderInput.files) files.push(...Array.from(folderInput.files));
-          if(fileInput && fileInput.files) files.push(...Array.from(fileInput.files));
+          fileInputs.forEach(fi=>{ files.push(...Array.from(fi.files || [])); });
           files.forEach((f, idx)=>{
             const rel = f.webkitRelativePath || f.relativePath || '';
             const hidden = document.createElement('input');
@@ -120,8 +121,10 @@
         }
 
         [ta, title].forEach(el=>{ if(el) el.addEventListener('input', update); });
-        if(fileInput){ fileInput.addEventListener('change', (e)=>{ syncRelativePaths(); renderPendingUploads(); }); }
-        if(folderInput){ folderInput.addEventListener('change', (e)=>{ syncRelativePaths(); renderPendingUploads(); }); }
+        // Watch all file inputs with name=attachments so we always reflect the DOM order
+        Array.from(form.querySelectorAll('input[type=file][name="attachments"]')).forEach(fi=>{
+          fi.addEventListener('change', (e)=>{ syncRelativePaths(); renderPendingUploads(); });
+        });
         if(clearBtn) clearBtn.addEventListener('click', clearSelections);
         renderPendingUploads();
       })();

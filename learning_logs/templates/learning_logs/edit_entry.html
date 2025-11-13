@@ -71,10 +71,11 @@
           }
 
           function syncRelativePaths(){
+            // Build relative_path[*] inputs by iterating file inputs in DOM order
             removeAllRelativePathInputs();
+            const fileInputs = Array.from(form.querySelectorAll('input[type=file][name="attachments"]'));
             const files = [];
-            if(folderInput && folderInput.files) files.push(...Array.from(folderInput.files));
-            if(fileInput && fileInput.files) files.push(...Array.from(fileInput.files));
+            fileInputs.forEach(fi=>{ files.push(...Array.from(fi.files || [])); });
             files.forEach((f, idx)=>{
               const rel = f.webkitRelativePath || f.relativePath || '';
               const hidden = document.createElement('input');
@@ -109,8 +110,9 @@
             renderPendingUploads();
           }
 
-          if(fileInput) fileInput.addEventListener('change', (e)=>{ syncRelativePaths(); renderPendingUploads(); });
-          if(folderInput) folderInput.addEventListener('change', (e)=>{ syncRelativePaths(); renderPendingUploads(); });
+          Array.from(form.querySelectorAll('input[type=file][name="attachments"]')).forEach(fi=>{
+            fi.addEventListener('change', (e)=>{ syncRelativePaths(); renderPendingUploads(); });
+          });
           if(clearBtn) clearBtn.addEventListener('click', clearSelections);
           renderPendingUploads();
         })();
