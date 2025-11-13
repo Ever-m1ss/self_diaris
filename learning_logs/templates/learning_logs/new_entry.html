@@ -26,15 +26,23 @@
           </div>
         {% endif %}
         {% bootstrap_form form show_labels=True %}
-        {# 附件在本需求下：新建页不可上传 / 不可删除 / 不可下载；仅静态展示日记本已有附件（无交互） #}
         <div class="mb-3">
-          <h6 class="mb-2">日记本附件（只读）</h6>
-          <div class="ll-attachments" data-parent-type="topic" data-parent-id="{{ topic.id }}">
+          <h6 class="mb-2">附件</h6>
+          <div class="ll-attachments" data-parent-type="topic" data-parent-id="{{ topic.id }}" data-async-upload="0">
             <div class="list-group list-group-flush ll-attach-list">
               {% include 'learning_logs/_attachment_tree.html' with tree=topic.attachment_tree parent_owner=topic.owner base='' allow_modify=False allow_download=False %}
             </div>
+            <div class="mt-2 d-flex gap-2 flex-wrap">
+              <label class="btn btn-outline-primary btn-sm mb-0">
+                选择文件
+                <input id="id_attachments" name="attachments" class="d-none" type="file" multiple>
+              </label>
+              <label class="btn btn-outline-primary btn-sm mb-0">
+                选择文件夹
+                <input id="id_attachments_folder" name="attachments" class="d-none" type="file" multiple webkitdirectory directory>
+              </label>
+            </div>
           </div>
-          <div class="form-text text-muted">当前策略：创建日记时不可上传 / 删除 / 下载附件。若需新增附件，请先保存后调整策略再开放。</div>
         </div>
         {# 附件可见性继承所属日记设置，此处无需单独选择 #}
         <div class="d-flex justify-content-between mt-3">
@@ -47,15 +55,36 @@
         const ta = document.getElementById('id_text');
         const title = document.getElementById('id_title');
         const btn = document.getElementById('submitBtn');
-        if(!ta || !btn) return;
+        const fileInput = document.getElementById('id_attachments');
+        const folderInput = document.getElementById('id_attachments_folder');
+        const form = document.querySelector('form');
+        if(!ta || !btn || !form) return;
+
         function update(){
           const hasText = (ta.value || '').trim().length > 0;
           const hasTitle = title && (title.value || '').trim().length > 0;
-          // 允许仅填写标题或正文即可提交（附件上传在新建页处于只读/不可上传）
-          btn.disabled = !(hasText || hasTitle);
+          const hasFiles = (fileInput && fileInput.files && fileInput.files.length>0) || (folderInput && folderInput.files && folderInput.files.length>0);
+          // 允许仅填写标题或正文或上传文件即可提交
+          btn.disabled = !(hasText || hasTitle || hasFiles);
         }
-        ta.addEventListener('input', update);
-        if(title) title.addEventListener('input', update);
+
+        function syncRelativePaths(input){
+          // Remove old relative_path[*] inputs
+          Array.from(form.querySelectorAll('input[name^="relative_path["]')).forEach(el=>el.remove());
+          const files = Array.from(input.files || []);
+          files.forEach((f, idx)=>{
+            const rel = f.webkitRelativePath || f.relativePath || '';
+            const hidden = document.createElement('input');
+            hidden.type = 'hidden';
+            hidden.name = `relative_path[${idx}]`;
+            hidden.value = rel;
+            form.appendChild(hidden);
+          });
+        }
+
+        [ta, title].forEach(el=>{ if(el) el.addEventListener('input', update); });
+        if(fileInput){ fileInput.addEventListener('change', (e)=>{ syncRelativePaths(e.target); update(); }); }
+        if(folderInput){ folderInput.addEventListener('change', (e)=>{ syncRelativePaths(e.target); update(); }); }
         update();
       })();
       </script>

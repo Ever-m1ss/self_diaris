@@ -29,7 +29,7 @@
         {% bootstrap_form form show_labels=True %}
         <div class="mb-3">
           <h6 class="mb-2">已有附件</h6>
-          <div class="ll-attachments" data-parent-type="entry" data-parent-id="{{ entry.id }}" {% if user == entry.owner %}data-can-edit="1"{% endif %}>
+          <div class="ll-attachments" data-parent-type="entry" data-parent-id="{{ entry.id }}" {% if user == entry.owner %}data-can-edit="1"{% endif %} data-async-upload="0">
             <div class="list-group list-group-flush ll-attach-list">
               {% include 'learning_logs/_attachment_tree.html' with tree=entry.attachment_tree parent_owner=entry.owner base='' allow_modify=True allow_download=False %}
             </div>
@@ -37,11 +37,11 @@
               <div class="mt-2 d-flex gap-2 flex-wrap">
                 <label class="btn btn-outline-primary btn-sm mb-0">
                   选择文件
-                  <input class="d-none" type="file" multiple>
+                  <input id="id_attachments" name="attachments" class="d-none" type="file" multiple>
                 </label>
                 <label class="btn btn-outline-primary btn-sm mb-0">
                   选择文件夹
-                  <input class="d-none" type="file" multiple webkitdirectory directory>
+                  <input id="id_attachments_folder" name="attachments" class="d-none" type="file" multiple webkitdirectory directory>
                 </label>
               </div>
             {% endif %}
@@ -53,7 +53,26 @@
           <button type="submit" class="btn btn-primary">保存更改</button>
         </div>
         <script>
-        // 编辑页附件交互已禁用
+        (function(){
+          const form = document.querySelector('form');
+          if(!form) return;
+          const fileInput = document.getElementById('id_attachments');
+          const folderInput = document.getElementById('id_attachments_folder');
+          function syncRelativePaths(input){
+            Array.from(form.querySelectorAll('input[name^="relative_path["]')).forEach(el=>el.remove());
+            const files = Array.from(input.files || []);
+            files.forEach((f, idx)=>{
+              const rel = f.webkitRelativePath || f.relativePath || '';
+              const hidden = document.createElement('input');
+              hidden.type = 'hidden';
+              hidden.name = `relative_path[${idx}]`;
+              hidden.value = rel;
+              form.appendChild(hidden);
+            });
+          }
+          if(fileInput) fileInput.addEventListener('change', (e)=> syncRelativePaths(e.target));
+          if(folderInput) folderInput.addEventListener('change', (e)=> syncRelativePaths(e.target));
+        })();
         </script>
       </form>
     </div>

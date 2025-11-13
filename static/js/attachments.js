@@ -297,7 +297,36 @@
       // 附件删除（模板 class: ll-attach-del）
       const attDel = e.target.closest('.ll-attach-del') || e.target.closest('.delete-attachment');
       if(attDel){
-        const id = attDel.dataset.id; if(id) deleteItem(id, attDel);
+        const id = attDel.dataset.id;
+        // If this attachment sits inside a wrapper that opted out of async
+        // uploads (data-async-upload="0"), stage the deletion locally and
+        // only perform actual delete when the enclosing form is submitted.
+        const wrapper = attDel.closest('.ll-attachments');
+        const asyncAttr = wrapper?.dataset?.asyncUpload;
+        if(asyncAttr === '0'){
+          // toggle staged delete state on the attachment item
+          const item = attDel.closest('.ll-attachment-item');
+          if(!item) return;
+          const form = item.closest('form') || document.querySelector('form');
+          if(!form){
+            alert('无法找到表单以暂存删除操作');
+            return;
+          }
+          const hiddenName = 'pending_delete_attachment_ids';
+          const existing = form.querySelector(`input[name="${hiddenName}"][value="${id}"]`);
+          if(existing){
+            // 已标记为删除 -> 取消标记
+            existing.remove();
+            item.classList.remove('pending-delete');
+            attDel.textContent = '删除';
+          } else {
+            const hid = document.createElement('input'); hid.type='hidden'; hid.name=hiddenName; hid.value=id; form.appendChild(hid);
+            item.classList.add('pending-delete');
+            attDel.textContent = '取消删除';
+          }
+          return;
+        }
+        if(id) deleteItem(id, attDel);
       }
       const folderDel = e.target.closest('.ll-folder-del');
       if(folderDel){
@@ -368,7 +397,16 @@
   }
 
   document.addEventListener('DOMContentLoaded', ()=>{
-    document.querySelectorAll('.ll-attachments').forEach(enhanceWrapper);
+    // Only enhance wrappers that allow async upload. To stage attachments and
+    // only persist them on final form submit (new/edit pages), set
+    // data-async-upload="0" on the .ll-attachments container. By default
+    // enhancement remains enabled for pages that expect immediate async
+    // upload (discovery, comment upload UI, etc.).
+    document.querySelectorAll('.ll-attachments').forEach((el)=>{
+      const asyncAttr = el.dataset.asyncUpload;
+      if (asyncAttr === '0') return; // skip enhancement for this wrapper
+      enhanceWrapper(el);
+    });
     bindGlobalClicks();
     // 目录展开/折叠逻辑（简化版 — 取消动画，保证兼容性）
     document.addEventListener('click', (e) => {

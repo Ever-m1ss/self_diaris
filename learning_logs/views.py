@@ -347,6 +347,16 @@ def edit_entry(request, entry_id):
             except Exception:
                 # 若时区模块不可用或保存失败，忽略但不要阻止后续操作
                 pass
+            # 处理由前端暂存的待删除附件（仅在点击“保存更改”时生效）
+            pending = request.POST.getlist('pending_delete_attachment_ids')
+            if pending:
+                try:
+                    atts = Attachment.objects.filter(id__in=[int(x) for x in pending], entry=entry)
+                    for a in atts:
+                        a.delete()
+                except Exception:
+                    # 忽略删除失败，以免妨碍主保存流程；可以记录日志以便排查
+                    pass
             # 可在编辑时追加附件（含文件夹）
             files = request.FILES.getlist('attachments')
             rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
