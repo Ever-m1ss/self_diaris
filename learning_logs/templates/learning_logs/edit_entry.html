@@ -33,7 +33,7 @@
             <div class="list-group list-group-flush ll-attach-list">
               {% include 'learning_logs/_attachment_tree.html' with tree=entry.attachment_tree parent_owner=entry.owner base='' allow_modify=True allow_download=False %}
             </div>
-            {% if user == entry.owner %}
+              {% if user == entry.owner %}
               <div class="mt-2 d-flex gap-2 flex-wrap">
                 <label class="btn btn-outline-primary btn-sm mb-0">
                   选择文件
@@ -43,6 +43,11 @@
                   选择文件夹
                   <input id="id_attachments_folder" name="attachments" class="d-none" type="file" multiple webkitdirectory directory>
                 </label>
+              </div>
+              <div id="pending-uploads-region" class="mt-2">
+                <small class="text-muted">已选附件（仅本地预览，提交后才会保存）：</small>
+                <ul id="pending-uploads-list" class="list-unstyled mb-1"></ul>
+                <button type="button" id="clearFileSelection" class="btn btn-sm btn-outline-secondary" style="display:none">清除已选</button>
               </div>
             {% endif %}
           </div>
@@ -58,9 +63,18 @@
           if(!form) return;
           const fileInput = document.getElementById('id_attachments');
           const folderInput = document.getElementById('id_attachments_folder');
-          function syncRelativePaths(input){
+          const clearBtn = document.getElementById('clearFileSelection');
+          const pendingList = document.getElementById('pending-uploads-list');
+
+          function removeAllRelativePathInputs(){
             Array.from(form.querySelectorAll('input[name^="relative_path["]')).forEach(el=>el.remove());
-            const files = Array.from(input.files || []);
+          }
+
+          function syncRelativePaths(){
+            removeAllRelativePathInputs();
+            const files = [];
+            if(folderInput && folderInput.files) files.push(...Array.from(folderInput.files));
+            if(fileInput && fileInput.files) files.push(...Array.from(fileInput.files));
             files.forEach((f, idx)=>{
               const rel = f.webkitRelativePath || f.relativePath || '';
               const hidden = document.createElement('input');
@@ -70,8 +84,35 @@
               form.appendChild(hidden);
             });
           }
-          if(fileInput) fileInput.addEventListener('change', (e)=> syncRelativePaths(e.target));
-          if(folderInput) folderInput.addEventListener('change', (e)=> syncRelativePaths(e.target));
+
+          function renderPendingUploads(){
+            if(!pendingList) return;
+            pendingList.innerHTML = '';
+            const makeName = (f)=> (f.webkitRelativePath || f.relativePath || f.name || 'unknown');
+            const addFiles = (files, label)=>{
+              Array.from(files || []).forEach(f=>{
+                const li = document.createElement('li');
+                li.className = 'small text-truncate';
+                li.textContent = (label ? label + ': ' : '') + makeName(f);
+                pendingList.appendChild(li);
+              });
+            };
+            addFiles(folderInput ? folderInput.files : [], '文件夹');
+            addFiles(fileInput ? fileInput.files : [], '');
+            if(pendingList.children.length>0){ clearBtn.style.display='inline-block'; } else { clearBtn.style.display='none'; }
+          }
+
+          function clearSelections(){
+            if(fileInput) fileInput.value = '';
+            if(folderInput) folderInput.value = '';
+            removeAllRelativePathInputs();
+            renderPendingUploads();
+          }
+
+          if(fileInput) fileInput.addEventListener('change', (e)=>{ syncRelativePaths(); renderPendingUploads(); });
+          if(folderInput) folderInput.addEventListener('change', (e)=>{ syncRelativePaths(); renderPendingUploads(); });
+          if(clearBtn) clearBtn.addEventListener('click', clearSelections);
+          renderPendingUploads();
         })();
         </script>
       </form>

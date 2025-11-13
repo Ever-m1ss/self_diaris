@@ -15,7 +15,7 @@
         <div class="d-flex align-items-center gap-3 flex-shrink-0">
           <a class="small" href="{% url 'learning_logs:download_attachment' a.id %}">下载</a>
           {% if user == parent_owner or user == a.owner %}
-            <button class="btn btn-sm btn-link text-danger ll-attach-del" data-id="{{ a.id }}">删除</button>
+            <button type="button" class="btn btn-sm btn-link text-danger ll-attach-del" data-id="{{ a.id }}">删除</button>
           {% endif %}
         </div>
       </li>

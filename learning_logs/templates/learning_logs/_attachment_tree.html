@@ -55,7 +55,7 @@
   {# 避免 smartif 解析括号导致 '(user' token，拆成嵌套条件 #}
   {% if allow_modify %}
     {% if user == parent_owner or user == att.owner %}
-        <button class="btn btn-sm btn-outline-danger delete-attachment" data-id="{{ att.id }}" data-name="{{ att.original_name }}">删除</button>
+  <button type="button" class="btn btn-sm btn-outline-danger delete-attachment" data-id="{{ att.id }}" data-name="{{ att.original_name }}">删除</button>
     {% endif %}
   {% endif %}
     </div>

@@ -42,6 +42,11 @@
                 <input id="id_attachments_folder" name="attachments" class="d-none" type="file" multiple webkitdirectory directory>
               </label>
             </div>
+            <div id="pending-uploads-region" class="mt-2">
+              <small class="text-muted">已选附件（仅本地预览，提交后才会保存）：</small>
+              <ul id="pending-uploads-list" class="list-unstyled mb-1"></ul>
+              <button type="button" id="clearFileSelection" class="btn btn-sm btn-outline-secondary" style="display:none">清除已选</button>
+            </div>
           </div>
         </div>
         {# 附件可见性继承所属日记设置，此处无需单独选择 #}
@@ -57,6 +62,8 @@
         const btn = document.getElementById('submitBtn');
         const fileInput = document.getElementById('id_attachments');
         const folderInput = document.getElementById('id_attachments_folder');
+        const clearBtn = document.getElementById('clearFileSelection');
+        const pendingList = document.getElementById('pending-uploads-list');
         const form = document.querySelector('form');
         if(!ta || !btn || !form) return;
 
@@ -68,10 +75,16 @@
           btn.disabled = !(hasText || hasTitle || hasFiles);
         }
 
-        function syncRelativePaths(input){
-          // Remove old relative_path[*] inputs
+        function removeAllRelativePathInputs(){
           Array.from(form.querySelectorAll('input[name^="relative_path["]')).forEach(el=>el.remove());
-          const files = Array.from(input.files || []);
+        }
+
+        function syncRelativePaths(){
+          // rebuild all relative_path[*] inputs from both file and folder inputs
+          removeAllRelativePathInputs();
+          const files = [];
+          if(folderInput && folderInput.files) files.push(...Array.from(folderInput.files));
+          if(fileInput && fileInput.files) files.push(...Array.from(fileInput.files));
           files.forEach((f, idx)=>{
             const rel = f.webkitRelativePath || f.relativePath || '';
             const hidden = document.createElement('input');
@@ -82,10 +95,35 @@
           });
         }
 
+        function renderPendingUploads(){
+          pendingList.innerHTML = '';
+          const makeName = (f)=> (f.webkitRelativePath || f.relativePath || f.name || 'unknown');
+          const addFiles = (files, label)=>{
+            Array.from(files || []).forEach(f=>{
+              const li = document.createElement('li');
+              li.className = 'small text-truncate';
+              li.textContent = (label ? label + ': ' : '') + makeName(f);
+              pendingList.appendChild(li);
+            });
+          };
+          addFiles(folderInput ? folderInput.files : [], '文件夹');
+          addFiles(fileInput ? fileInput.files : [], '');
+          if(pendingList.children.length>0){ clearBtn.style.display='inline-block'; } else { clearBtn.style.display='none'; }
+          update();
+        }
+
+        function clearSelections(){
+          if(fileInput) fileInput.value = '';
+          if(folderInput) folderInput.value = '';
+          removeAllRelativePathInputs();
+          renderPendingUploads();
+        }
+
         [ta, title].forEach(el=>{ if(el) el.addEventListener('input', update); });
-        if(fileInput){ fileInput.addEventListener('change', (e)=>{ syncRelativePaths(e.target); update(); }); }
-        if(folderInput){ folderInput.addEventListener('change', (e)=>{ syncRelativePaths(e.target); update(); }); }
-        update();
+        if(fileInput){ fileInput.addEventListener('change', (e)=>{ syncRelativePaths(); renderPendingUploads(); }); }
+        if(folderInput){ folderInput.addEventListener('change', (e)=>{ syncRelativePaths(); renderPendingUploads(); }); }
+        if(clearBtn) clearBtn.addEventListener('click', clearSelections);
+        renderPendingUploads();
       })();
       </script>
     </div>
