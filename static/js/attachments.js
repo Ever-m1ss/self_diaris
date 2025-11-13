@@ -448,9 +448,9 @@
     // data-async-upload="0" on the .ll-attachments container. By default
     // enhancement remains enabled for pages that expect immediate async
     // upload (discovery, comment upload UI, etc.).
+    // Enhance all wrappers; enhanceWrapper internally checks wrapper.dataset.asyncUpload
+    // and will either perform async uploads or stage files locally depending on that flag.
     document.querySelectorAll('.ll-attachments').forEach((el)=>{
-      const asyncAttr = el.dataset.asyncUpload;
-      if (asyncAttr === '0') return; // skip enhancement for this wrapper
       enhanceWrapper(el);
     });
     bindGlobalClicks();
