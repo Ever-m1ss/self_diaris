@@ -1,6 +1,7 @@
 from django.shortcuts import render, redirect, get_object_or_404
 from django.urls import reverse
 from django.contrib.auth.decorators import login_required
+from django.contrib.auth import get_user_model, login as auth_login
 from django.http import Http404, JsonResponse, HttpResponseBadRequest
 from django.http import FileResponse
 from django.db.models import Q
@@ -50,6 +51,48 @@ def index(request):
         'entries': entries,
     }
     return render(request, 'learning_logs/index.html', context)
+
+
+def start_traveler(request):
+    """Log the visitor in as the special 'traveler' user (create if missing),
+    then redirect to the first public topic's discovery page (or discovery home).
+    This allows anonymous visitors to quickly browse public content under a
+    consistent username without going through the normal login flow.
+    """
+    User = get_user_model()
+    username = 'traveler'
+    try:
+        user = User.objects.get(username=username)
+    except User.DoesNotExist:
+        # Create a minimal traveler user with unusable password.
+        user = User(username=username)
+        try:
+            user.set_unusable_password()
+        except Exception:
+            pass
+        # Ensure active so login succeeds
+        user.is_active = True
+        user.save()
+
+    # Perform login using the default ModelBackend. This requires that the
+    # backend string is available in AUTHENTICATION_BACKENDS (default case).
+    try:
+        auth_login(request, user, backend='django.contrib.auth.backends.ModelBackend')
+    except Exception:
+        # Fallback: set session backend marker (older Django versions may accept)
+        request.session['_auth_user_id'] = user.pk
+        request.session['_auth_user_backend'] = 'django.contrib.auth.backends.ModelBackend'
+
+    # Redirect to first public topic's discovery page when possible
+    from django.urls import reverse
+    topics_qs = Topic.objects.filter(is_public=True).order_by('-date_added')
+    if topics_qs.exists():
+        t = topics_qs.first()
+        try:
+            return redirect(reverse('learning_logs:discovey_by_user', kwargs={'username': t.owner.username, 'topic_name': t.text}))
+        except Exception:
+            return redirect('learning_logs:discovey_home')
+    return redirect('learning_logs:discovey_home')
 
 @login_required
 def topics(request):
@@ -205,6 +248,10 @@ def public_discovey(request):
 @login_required
 def new_topic(request):
     """Add a new topic."""
+    # Prevent the special 'traveler' user from creating content; force real login
+    if getattr(request.user, 'username', None) == 'traveler':
+        login_url = reverse('accounts:login')
+        return redirect(f"{login_url}?next={request.get_full_path()}")
     if request.method != 'POST':
         # No data submitted; create a blank form.
         form = TopicForm()
@@ -227,6 +274,10 @@ def new_topic(request):
 @login_required
 def new_entry(request, topic_id):
     """Add a new entry for a particular topic."""
+    # Prevent the special 'traveler' user from creating content; force real login
+    if getattr(request.user, 'username', None) == 'traveler':
+        login_url = reverse('accounts:login')
+        return redirect(f"{login_url}?next={request.get_full_path()}")
     topic = Topic.objects.get(id=topic_id)
     # 非作者只能在公开的日记本下添加
     if topic.owner != request.user and not topic.is_public:
@@ -271,6 +322,10 @@ def new_entry(request, topic_id):
 @login_required
 def edit_entry(request, entry_id):
     """Edit an existing entry."""
+    # Prevent the special 'traveler' user from editing content; force real login
+    if getattr(request.user, 'username', None) == 'traveler':
+        login_url = reverse('accounts:login')
+        return redirect(f"{login_url}?next={request.get_full_path()}")
     entry = Entry.objects.get(id=entry_id)
     topic = entry.topic
     # 只能由日记作者本人编辑
@@ -744,6 +799,10 @@ def add_comment(request, entry_id):
     """添加评论：私密日记仅作者可评；公开日记任何登录用户可评。支持评论上传附件。"""
     entry = Entry.objects.get(id=entry_id)
     topic = entry.topic
+    # Treat 'traveler' as read-only: prompt for real login before allowing comments/replies
+    if getattr(request.user, 'username', None) == 'traveler':
+        login_url = reverse('accounts:login')
+        return redirect(f"{login_url}?next={request.get_full_path()}")
     # 私密日记：仅作者可评论；公开日记：登录用户可评论
     if not entry.is_public and entry.owner != request.user:
         raise Http404

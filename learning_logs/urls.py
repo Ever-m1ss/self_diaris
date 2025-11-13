@@ -21,6 +21,8 @@ urlpatterns = [
     path('discovey/', views.public_discovey, name='discovey_home'),
     # Discovery view: URL used from "发现" for browsing a topic (read-only, no edit button)
     path('discovey/<path:topic_name>/', views.discovey, name='discovey'),
+    # Start as traveler quick entry: auto-login visitor as 'traveler' and redirect to first public topic.
+    path('start_traveler/', views.start_traveler, name='start_traveler'),
     # Page for adding a new topic.
     path('new_topic/', views.new_topic, name='new_topic'),
     # Page for adding a new entry.
