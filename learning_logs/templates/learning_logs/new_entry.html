@@ -127,6 +127,11 @@
         Array.from(form.querySelectorAll('input[type=file][name="attachments"]')).forEach(fi=>{
           fi.addEventListener('change', (e)=>{ syncRelativePaths(); renderPendingUploads(); });
         });
+        // Ensure relative_path[*] inputs are built right before the form is submitted.
+        // In some environments (embedded browsers / remote sessions) input.files may
+        // not be populated until submit; rebuilding on submit guarantees the server
+        // receives matching relative_path indices for request.FILES.
+        form.addEventListener('submit', (e)=>{ syncRelativePaths(); });
         if(clearBtn) clearBtn.addEventListener('click', clearSelections);
         renderPendingUploads();
       })();

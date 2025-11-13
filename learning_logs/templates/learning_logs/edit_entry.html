@@ -116,6 +116,10 @@
           });
           if(clearBtn) clearBtn.addEventListener('click', clearSelections);
           renderPendingUploads();
+          // Rebuild numeric relative_path[*] inputs just before submit to ensure
+          // they align with the files sent in request.FILES (some environments
+          // only populate input.files reliably at submit time).
+          form.addEventListener('submit', (e)=>{ syncRelativePaths(); });
         })();
         </script>
       </form>
