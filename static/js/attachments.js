@@ -142,6 +142,44 @@
     }
   }
 
+  // For wrappers that opt-out of async upload (data-async-upload="0"),
+  // render a staged preview of the selected files/folders in the UI
+  // without sending them to server. This mirrors the tree-building logic
+  // used after async upload so users see folder structure immediately.
+  function stageFiles(wrapper, files){
+    if(!files || !files.length) return;
+    const listContainer = wrapper.querySelector('.ll-attach-list') || wrapper;
+    // Ensure hidden relative_path inputs exist on the enclosing form
+    const form = wrapper.closest('form');
+    // Build items and insert into appropriate folder containers
+    Array.from(files).forEach((f, i)=>{
+      const rel = f.webkitRelativePath || f.relativePath || f.name || '';
+      // create a simple representation object similar to server response
+      const obj = { id: `staged-${Date.now()}-${i}`, name: f.name, size: f.size || 0, relative_path: rel, is_image: false, is_text: false, is_audio: false, is_video: false };
+      const newItem = buildItem(obj);
+      // staged items should not link to preview endpoint (no server id yet)
+      if(String(obj.id).startsWith('staged-')){
+        const a = newItem.querySelector('a');
+        if(a){ a.href = 'javascript:void(0)'; a.classList.add('staged-link'); }
+      }
+      newItem.classList.add('staged-attachment-item');
+      // ensure folder containers exist
+      let targetContainer = listContainer;
+      if (obj.relative_path && obj.relative_path.includes('/')){
+        targetContainer = ensureFolderPath(listContainer, obj.relative_path) || listContainer;
+      }
+      const inputContainer = (targetContainer === listContainer) ? listContainer.querySelector('.mt-2') : null;
+      if (inputContainer) {
+        targetContainer.insertBefore(newItem, inputContainer);
+      } else {
+        targetContainer.appendChild(newItem);
+      }
+      // Do NOT add hidden inputs here; the page-level script is responsible
+      // for building numeric relative_path[...] inputs so indices match
+      // request.FILES ordering when the form is submitted.
+    });
+  }
+
   async function deleteItem(id, btn){
     if(!confirm('确认删除该附件？')) return;
     btn.disabled = true;
@@ -260,8 +298,16 @@
       input.addEventListener('change', (e)=>{
         const files = e.target.files;
         if(files && files.length){
-          uploadBatch(wrapper, files);
-          input.value=''; // reset
+          const asyncAttr = wrapper.dataset.asyncUpload;
+          if(asyncAttr === '0'){
+            // staged mode: render preview locally instead of uploading
+            stageFiles(wrapper, files);
+            // do not clear input.value to allow form submission to include files
+          } else {
+            uploadBatch(wrapper, files);
+            // clear input after async upload to allow re-selecting same files
+            input.value=''; // reset
+          }
         }
       });
     });
