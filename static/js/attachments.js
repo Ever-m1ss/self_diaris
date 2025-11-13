@@ -52,9 +52,9 @@
     item.appendChild(icon);
 
   const link = document.createElement('a');
-  // 文件名链接使用原始文件 URL，便于图片/文本类直接预览；下载按钮仍走专用端点
-  link.href = a.url;
-    link.target = '_blank';
+  // 文件名链接改为指向预览端点，预览页面负责高亮与下载操作；下载按钮仍走专用端点
+  link.href = `/attachments/preview/${a.id}/`;
+    link.target = '_self';
     link.className = 'flex-grow-1 text-decoration-none text-body';
     link.textContent = a.name;
     item.appendChild(link);
