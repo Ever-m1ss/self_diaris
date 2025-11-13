@@ -97,18 +97,20 @@
         }
 
         function renderPendingUploads(){
+          // Ensure hidden relative_path inputs reflect current selection
+          syncRelativePaths();
           pendingList.innerHTML = '';
           const makeName = (f)=> (f.webkitRelativePath || f.relativePath || f.name || 'unknown');
-          const addFiles = (files, label)=>{
-            Array.from(files || []).forEach(f=>{
-              const li = document.createElement('li');
-              li.className = 'small text-truncate';
-              li.textContent = (label ? label + ': ' : '') + makeName(f);
-              pendingList.appendChild(li);
-            });
-          };
-          addFiles(folderInput ? folderInput.files : [], '文件夹');
-          addFiles(fileInput ? fileInput.files : [], '');
+          // Aggregate files from all inputs named attachments in DOM order so preview order matches request.FILES
+          const fileInputs = Array.from(form.querySelectorAll('input[type=file][name="attachments"]'));
+          const files = [];
+          fileInputs.forEach(fi=> files.push(...Array.from(fi.files || [])));
+          Array.from(files).forEach(f=>{
+            const li = document.createElement('li');
+            li.className = 'small text-truncate';
+            li.textContent = makeName(f);
+            pendingList.appendChild(li);
+          });
           if(pendingList.children.length>0){ clearBtn.style.display='inline-block'; } else { clearBtn.style.display='none'; }
           update();
         }
