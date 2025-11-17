@@ -685,7 +685,6 @@ def preview_attachment(request, attachment_id):
     return render(request, 'learning_logs/preview_attachment.html', context)
 
 
-@login_required
 def download_attachment(request, attachment_id):
     """提供单个附件文件下载，带原始文件名；遵循与预览相同的权限规则。"""
     att = get_object_or_404(Attachment, id=attachment_id)
