@@ -15,10 +15,28 @@
   {# 返回键已统一放在导航栏左侧，删除页面内的额外返回链接 #}
   <div class="card">
     <div class="card-body">
-      <pre class="mb-0" style="white-space: pre-wrap; word-break: break-word;">{{ text }}</pre>
+      <pre class="mb-0"><code class="hljs" style="white-space: pre-wrap; word-break: break-word;">{{ text|escape }}</code></pre>
     </div>
   </div>
   <p class="mt-3">
     原文件：<a href="{{ attachment.file.url }}" download>{{ attachment.original_name }}</a>
   </p>
 {% endblock content %}
+
+{% block extra_head %}
+  {# 加载 highlight.js（只在预览页加载），使用 CDN 的 GitHub 主题并启用自动高亮 #}
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/highlight.js@11.8.0/styles/github.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/highlight.js@11.8.0/lib/common.min.js" defer></script>
+  <script defer>
+    document.addEventListener('DOMContentLoaded', function(){
+      try{
+        if(window.hljs){
+          // 自动检测语言并高亮
+          document.querySelectorAll('pre code').forEach((el)=>{
+            try{ hljs.highlightElement(el); }catch(e){}
+          });
+        }
+      }catch(e){}
+    });
+  </script>
+{% endblock %}
