@@ -36,9 +36,18 @@
         </div>
 
         <div class="mb-3">
-          <label class="form-label">上传附件（可多选，支持文件夹）</label>
-          <input id="id_attachments" name="attachments" type="file" multiple webkitdirectory directory class="form-control">
-          <div class="form-text">上传的附件会随本条日记一起保存，支持批量选择或选择文件夹（受浏览器支持）。</div>
+          <h6 class="mb-2">上传附件</h6>
+          <div class="mt-2 d-flex gap-2 flex-wrap">
+            <label class="btn btn-outline-primary btn-sm mb-0">
+              选择文件
+              <input class="d-none" type="file" name="attachments" multiple data-no-async>
+            </label>
+            <label class="btn btn-outline-primary btn-sm mb-0">
+              选择文件夹
+              <input class="d-none" type="file" name="attachments" multiple webkitdirectory directory data-no-async>
+            </label>
+          </div>
+          <div class="form-text mt-1">支持选择多个文件或选择一个/多个文件夹（受浏览器支持）。</div>
         </div>
         {# 附件可见性继承所属日记设置，此处无需单独选择 #}
         <div class="d-flex justify-content-between mt-3">
@@ -67,32 +76,28 @@
         if(fileInputEl) fileInputEl.addEventListener('change', update);
         update();
 
-        // On submit, create hidden inputs relative_path[<index>] for each file
+        // On submit, create hidden inputs relative_path[<index>] for each file collected from all attachments inputs
         const formEl = document.querySelector('form');
         if(formEl) {
           formEl.addEventListener('submit', function(e){
             // Remove any previously added relative_path inputs
-            const old = formEl.querySelectorAll('input[name^="relative_path["]');
-            old.forEach(n => n.remove());
+            Array.from(formEl.querySelectorAll('input[name^="relative_path["]')).forEach(n => n.remove());
 
-            if(!fileInputEl || !fileInputEl.files || fileInputEl.files.length === 0) {
-              return; // nothing to add
-            }
-            // For each File, determine a safe relative path. Prefer webkitRelativePath when available.
-            Array.from(fileInputEl.files).forEach(function(f, idx){
-              let rel = '';
-              try {
-                rel = f.webkitRelativePath || f.relativePath || f.name;
-              } catch (err) {
-                rel = f.name;
+            // Collect files from all inputs named attachments inside this form
+            const fileInputs = Array.from(formEl.querySelectorAll('input[type=file][name="attachments"]'));
+            let allFiles = [];
+            fileInputs.forEach(function(inp){
+              if(inp.files && inp.files.length) {
+                allFiles = allFiles.concat(Array.from(inp.files));
               }
-              // Normalize separators and remove leading slashes
+            });
+            if(allFiles.length === 0) return;
+            allFiles.forEach(function(f, idx){
+              let rel = '';
+              try { rel = f.webkitRelativePath || f.relativePath || f.name; } catch(err){ rel = f.name; }
               rel = (rel || '').replace(/\\/g, '/').replace(/^\/+/, '');
-              // Create hidden input
               const inp = document.createElement('input');
-              inp.type = 'hidden';
-              inp.name = 'relative_path[' + idx + ']';
-              inp.value = rel;
+              inp.type = 'hidden'; inp.name = 'relative_path[' + idx + ']'; inp.value = rel;
               formEl.appendChild(inp);
             });
           });

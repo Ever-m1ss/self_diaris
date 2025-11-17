@@ -257,6 +257,8 @@
     const inputs = wrapper.querySelectorAll('input[type=file]');
     if(!inputs || !inputs.length) return;
     inputs.forEach((input)=>{
+      // Skip inputs explicitly marked to avoid async handling (used for form-submit attachments)
+      if (input.dataset && input.dataset.noAsync) return;
       input.addEventListener('change', (e)=>{
         const files = e.target.files;
         if(files && files.length){
