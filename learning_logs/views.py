@@ -262,9 +262,23 @@ def new_topic(request):
             new_topic = form.save(commit=False)
             new_topic.owner = request.user
             new_topic.save()
-            # 处理附件（可选，多文件）
-            files = request.FILES.getlist('attachments')
-            _save_attachments_from_request(files, request.user, topic=new_topic)
+            # 处理附件（可选，多文件/文件夹）
+            files = request.FILES.getlist('attachments') or request.FILES.getlist('attachments[]') or request.FILES.getlist('files') or request.FILES.getlist('files[]')
+            rel_paths = {}
+            for k, v in request.POST.items():
+                if k.startswith('relative_path[') and k.endswith(']'):
+                    try:
+                        idx = k.split('relative_path[')[1].split(']')[0]
+                        rel_paths[idx] = v
+                    except Exception:
+                        continue
+                elif k.startswith('relative_path_'):
+                    try:
+                        idx = k.split('relative_path_')[1]
+                        rel_paths[idx] = v
+                    except Exception:
+                        continue
+            _save_attachments_from_request(files, request.user, topic=new_topic, relative_paths=rel_paths)
             return redirect('learning_logs:topics')
 
     # Display a blank or invalid form.
@@ -370,8 +384,27 @@ def edit_entry(request, entry_id):
                 # 若时区模块不可用或保存失败，忽略但不要阻止后续操作
                 pass
             # 可在编辑时追加附件（含文件夹）
-            files = request.FILES.getlist('attachments')
-            rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
+            files = request.FILES.getlist('attachments') or request.FILES.getlist('attachments[]') or request.FILES.getlist('files') or request.FILES.getlist('files[]')
+            rel_paths = {}
+            for k, v in request.POST.items():
+                if k.startswith('relative_path[') and k.endswith(']'):
+                    try:
+                        idx = k.split('relative_path[')[1].split(']')[0]
+                        rel_paths[idx] = v
+                    except Exception:
+                        continue
+                elif k.startswith('relative_path_'):
+                    try:
+                        idx = k.split('relative_path_')[1]
+                        rel_paths[idx] = v
+                    except Exception:
+                        continue
+            try:
+                import logging
+                log = logging.getLogger('learning_logs.edit_entry')
+                log.debug('edit_entry files=%s rel_paths_keys=%s', len(files) if files is not None else 0, list(rel_paths.keys()))
+            except Exception:
+                pass
             _save_attachments_from_request(files, request.user, entry=entry, relative_paths=rel_paths)
             try:
                 url = reverse('learning_logs:topic_by_user', kwargs={'username': topic.owner.username, 'topic_name': topic.text})

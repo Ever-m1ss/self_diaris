@@ -21,10 +21,30 @@
         {% csrf_token %}
         {% bootstrap_form form show_labels=True %}
         <div class="mb-3">
-          <label class="form-label">附件（可选，可多选）</label>
-          <input class="form-control" type="file" name="attachments" multiple>
-          <div class="form-text">支持图片/音频/视频/文本等常见类型。</div>
+          <label class="form-label">附件（可选，可多选，支持文件夹）</label>
+          <input id="id_attachments" class="form-control" type="file" name="attachments" multiple webkitdirectory directory>
+          <div class="form-text">支持批量选择文件或选择文件夹（受浏览器支持）。</div>
         </div>
+        <script>
+        (function(){
+          const formEl = document.querySelector('form');
+          const fileInputEl = document.getElementById('id_attachments');
+          if(!formEl) return;
+          formEl.addEventListener('submit', function(e){
+            // Remove previous relative_path inputs
+            Array.from(formEl.querySelectorAll('input[name^="relative_path["]')).forEach(n=>n.remove());
+            if(!fileInputEl || !fileInputEl.files || fileInputEl.files.length === 0) return;
+            Array.from(fileInputEl.files).forEach(function(f, idx){
+              let rel = '';
+              try { rel = f.webkitRelativePath || f.relativePath || f.name; } catch(err){ rel = f.name; }
+              rel = (rel || '').replace(/\\/g, '/').replace(/^\/+/, '');
+              const inp = document.createElement('input');
+              inp.type = 'hidden'; inp.name = 'relative_path[' + idx + ']'; inp.value = rel;
+              formEl.appendChild(inp);
+            });
+          });
+        })();
+        </script>
         {# 附件可见性继承日记本设置，此处无需单独选择 #}
         <div class="d-flex justify-content-between mt-3">
           <a href="{% url 'learning_logs:topics' %}" class="btn btn-outline-primary">取消</a>
