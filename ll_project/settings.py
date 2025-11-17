@@ -187,6 +187,10 @@ LOGIN_REDIRECT_URL = 'learning_logs:index'
 LOGOUT_REDIRECT_URL = 'learning_logs:index'
 LOGIN_URL = 'accounts:login'
 
+# 文件上传大小限制：扩展到 1GB（以支持大文件夹上传）
+DATA_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024 * 1024  # 1 GiB
+FILE_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024 * 1024  # 1 GiB
+
 # Ensure uncommon extensions are served with correct MIME types (e.g., custom H.264 files)
 # Some users may place files with non-standard extensions like .m246; map them to video/mp4
 mimetypes.add_type('video/mp4', '.m246', strict=False)

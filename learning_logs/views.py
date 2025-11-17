@@ -580,7 +580,6 @@ def upload_attachments_api(request):
     return JsonResponse({'ok': True, 'files': data})
 
 
-@login_required
 def preview_attachment(request, attachment_id):
     """预览文本类附件内容（限制大小），其它类型重定向到文件 URL 或在模板嵌入。仅对有权查看者开放。"""
     from .models import Attachment
@@ -589,45 +588,46 @@ def preview_attachment(request, attachment_id):
     topic = att.topic or (entry.topic if entry else None)
     if topic is None:
         raise Http404
-    # 权限：必须登录；需能查看所属对象；如附件私密，仅上传者可看
+    # 权限：访客也可查看公开内容；私密对象仅限作者/上传者
     if topic.owner == request.user:
         pass
     else:
-        # 非作者：
-        # - 主题私密：不可见
+        # 非作者：主题私密 -> 不可见
         if not topic.is_public:
             raise Http404
-        # - 若有 entry：私密日记不可见
+        # 若有 entry：私密日记不可见
         if entry and not entry.is_public:
             raise Http404
-        # - 附件为私密时仅上传者可见
-        if not att.is_public and att.owner != request.user:
+        # 附件私密时仅上传者可见
+        if not att.is_public and getattr(att.owner, 'id', None) != getattr(request.user, 'id', None):
             raise Http404
 
-    # 仅文本类提供内联预览
-    if not att.is_text_like:
-        raise Http404
-
-    # 读取有限大小，避免过大
-    max_bytes = 200 * 1024  # 200KB
-    try:
-        file_obj = att.file.open('rb')
-        data = file_obj.read(max_bytes)
-        file_obj.close()
+    # 根据附件类型选择预览方式：文本类读取片段，图片/音视频在模板中直接嵌入
+    context = {'attachment': att, 'entry': entry, 'topic': topic}
+    if att.is_text_like:
+        max_bytes = 200 * 1024  # 200KB
         try:
-            text = data.decode('utf-8')
-        except UnicodeDecodeError:
-            # 回退 latin-1，避免报错
-            text = data.decode('latin-1', errors='replace')
-    except Exception:
-        text = '(无法读取文件内容)'
+            file_obj = att.file.open('rb')
+            data = file_obj.read(max_bytes)
+            file_obj.close()
+            try:
+                text = data.decode('utf-8')
+            except UnicodeDecodeError:
+                text = data.decode('latin-1', errors='replace')
+        except Exception:
+            text = '(无法读取文件内容)'
+        context['text'] = text
+        context['preview_type'] = 'text'
+    elif att.is_image:
+        context['preview_type'] = 'image'
+    elif att.is_video:
+        context['preview_type'] = 'video'
+    elif att.is_audio:
+        context['preview_type'] = 'audio'
+    else:
+        context['preview_type'] = 'unsupported'
 
-    return render(request, 'learning_logs/preview_attachment.html', {
-        'attachment': att,
-        'entry': entry,
-        'topic': topic,
-        'text': text,
-    })
+    return render(request, 'learning_logs/preview_attachment.html', context)
 
 
 @login_required

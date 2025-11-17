@@ -15,7 +15,29 @@
   {# 返回键已统一放在导航栏左侧，删除页面内的额外返回链接 #}
   <div class="card">
     <div class="card-body">
-      <pre class="mb-0"><code class="hljs" style="white-space: pre-wrap; word-break: break-word;">{{ text|escape }}</code></pre>
+      {% if preview_type == 'text' %}
+        <pre class="mb-0"><code class="hljs" style="white-space: pre-wrap; word-break: break-word;">{{ text|escape }}</code></pre>
+      {% elif preview_type == 'image' %}
+        <div class="text-center">
+          <img src="{{ attachment.file.url }}" alt="{{ attachment.original_name }}" class="img-fluid" />
+        </div>
+      {% elif preview_type == 'video' %}
+        <div class="text-center">
+          <video controls class="w-100" preload="metadata">
+            <source src="{{ attachment.file.url }}" type="{{ attachment.content_type }}">
+            你的浏览器不支持视频播放。
+          </video>
+        </div>
+      {% elif preview_type == 'audio' %}
+        <div class="text-center">
+          <audio controls>
+            <source src="{{ attachment.file.url }}" type="{{ attachment.content_type }}">
+            你的浏览器不支持音频播放。
+          </audio>
+        </div>
+      {% else %}
+        <div class="alert alert-secondary">该文件类型不支持在线预览。你可以点击“下载”按钮获取文件。</div>
+      {% endif %}
     </div>
   </div>
   <p class="mt-3">
