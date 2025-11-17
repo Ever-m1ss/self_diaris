@@ -289,9 +289,31 @@ def new_entry(request, topic_id):
     else:
         # POST data submitted; process data.
         form = EntryForm(data=request.POST)
-        files = request.FILES.getlist('attachments')
+        # 尝试从多种可能的字段名读取上传的文件（兼容不同前端实现）
+        files = request.FILES.getlist('attachments') or request.FILES.getlist('attachments[]') or request.FILES.getlist('files') or request.FILES.getlist('files[]')
         # 支持文件夹上传：前端通过 hidden input 提交 relative_path[index]
-        rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
+        rel_paths = {}
+        for k, v in request.POST.items():
+            if k.startswith('relative_path[') and k.endswith(']'):
+                try:
+                    idx = k.split('relative_path[')[1].split(']')[0]
+                    rel_paths[idx] = v
+                except Exception:
+                    continue
+            # 兼容其它可能格式：relative_path_0
+            elif k.startswith('relative_path_'):
+                try:
+                    idx = k.split('relative_path_')[1]
+                    rel_paths[idx] = v
+                except Exception:
+                    continue
+        # 简短调试日志（仅在需要时可查看）
+        try:
+            import logging
+            log = logging.getLogger('learning_logs.new_entry')
+            log.debug('new_entry files=%s rel_paths_keys=%s', len(files) if files is not None else 0, list(rel_paths.keys()))
+        except Exception:
+            pass
         if form.is_valid():
             text_val = (form.cleaned_data.get('text') or '').strip()
             # 校验：正文与附件不可同时为空
