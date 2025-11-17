@@ -347,16 +347,6 @@ def edit_entry(request, entry_id):
             except Exception:
                 # 若时区模块不可用或保存失败，忽略但不要阻止后续操作
                 pass
-            # 处理由前端暂存的待删除附件（仅在点击“保存更改”时生效）
-            pending = request.POST.getlist('pending_delete_attachment_ids')
-            if pending:
-                try:
-                    atts = Attachment.objects.filter(id__in=[int(x) for x in pending], entry=entry)
-                    for a in atts:
-                        a.delete()
-                except Exception:
-                    # 忽略删除失败，以免妨碍主保存流程；可以记录日志以便排查
-                    pass
             # 可在编辑时追加附件（含文件夹）
             files = request.FILES.getlist('attachments')
             rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
@@ -590,10 +580,9 @@ def upload_attachments_api(request):
     return JsonResponse({'ok': True, 'files': data})
 
 
+@login_required
 def preview_attachment(request, attachment_id):
-    """预览文本类附件内容（限制大小），其它类型重定向到文件 URL 或在模板嵌入。
-    允许匿名用户查看公开附件：视图内部会校验 topic/entry/attachment 的公开性并拒绝未授权访问。
-    """
+    """预览文本类附件内容（限制大小），其它类型重定向到文件 URL 或在模板嵌入。仅对有权查看者开放。"""
     from .models import Attachment
     att = Attachment.objects.select_related('entry', 'owner', 'entry__topic', 'topic', 'comment', 'comment__entry', 'comment__entry__topic').get(id=attachment_id)
     entry = att.entry or (att.comment.entry if att.comment_id else None)
@@ -615,41 +604,29 @@ def preview_attachment(request, attachment_id):
         if not att.is_public and att.owner != request.user:
             raise Http404
 
-    # 如果不是文本类附件，则不尝试读取并高亮；仍返回预览页，但提示不可在线预览并提供下载按钮。
-    text = None
-    if att.is_text_like:
-        # 读取有限大小，避免过大
-        max_bytes = 200 * 1024  # 200KB
-        try:
-            file_obj = att.file.open('rb')
-            data = file_obj.read(max_bytes)
-            file_obj.close()
-            try:
-                text = data.decode('utf-8')
-            except UnicodeDecodeError:
-                # 回退 latin-1，避免报错
-                text = data.decode('latin-1', errors='replace')
-        except Exception:
-            text = '(无法读取文件内容)'
+    # 仅文本类提供内联预览
+    if not att.is_text_like:
+        raise Http404
 
-    # 计算简单的高亮语言类别（用于 highlight.js）
-    import os
-    ext = os.path.splitext((att.original_name or '').lower())[1]
-    lang_map = {
-        '.py': 'language-python', '.js': 'language-javascript', '.ts': 'language-typescript',
-        '.css': 'language-css', '.html': 'language-html', '.json': 'language-json',
-        '.md': 'language-markdown', '.java': 'language-java', '.c': 'language-c',
-        '.cpp': 'language-cpp', '.h': 'language-cpp', '.txt': 'language-plaintext',
-        '.sh': 'language-bash', '.yml': 'language-yaml', '.yaml': 'language-yaml',
-        '.xml': 'language-xml', '.rb': 'language-ruby', '.go': 'language-go',
-    }
-    lang_class = lang_map.get(ext, 'language-plaintext')
+    # 读取有限大小，避免过大
+    max_bytes = 200 * 1024  # 200KB
+    try:
+        file_obj = att.file.open('rb')
+        data = file_obj.read(max_bytes)
+        file_obj.close()
+        try:
+            text = data.decode('utf-8')
+        except UnicodeDecodeError:
+            # 回退 latin-1，避免报错
+            text = data.decode('latin-1', errors='replace')
+    except Exception:
+        text = '(无法读取文件内容)'
+
     return render(request, 'learning_logs/preview_attachment.html', {
         'attachment': att,
         'entry': entry,
         'topic': topic,
         'text': text,
-        'lang_class': lang_class,
     })
 
 

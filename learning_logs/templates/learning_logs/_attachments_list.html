@@ -6,16 +6,20 @@
           <div class="ll-attach-icon text-muted">📎</div>
           <div class="ll-attach-meta">
             <div class="fw-semibold">
-              <a href="{% url 'learning_logs:preview_attachment' a.id %}">{{ a.original_name }}</a>
+              {% if a.is_text_like %}
+                <a href="{% url 'learning_logs:preview_attachment' a.id %}">{{ a.original_name }}</a>
+              {% else %}
+                <a href="{{ a.file.url }}" target="_blank" rel="noreferrer">{{ a.original_name }}</a>
+              {% endif %}
               {% if a.relative_path %}<span class="text-muted small">({{ a.relative_path }})</span>{% endif %}
             </div>
             <div class="small text-muted">{{ a.size }} bytes · {{ a.uploaded_at|date:'Y-m-d H:i' }}</div>
           </div>
         </div>
         <div class="d-flex align-items-center gap-3 flex-shrink-0">
-          <a class="small" href="{% url 'learning_logs:download_attachment' a.id %}">下载</a>
+          <a class="small" href="{{ a.file.url }}" download>下载</a>
           {% if user == parent_owner or user == a.owner %}
-            <button type="button" class="btn btn-sm btn-link text-danger ll-attach-del" data-id="{{ a.id }}">删除</button>
+            <button class="btn btn-sm btn-link text-danger ll-attach-del" data-id="{{ a.id }}">删除</button>
           {% endif %}
         </div>
       </li>

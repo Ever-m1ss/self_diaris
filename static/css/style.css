@@ -489,10 +489,6 @@ body.home-page::after {
     .ll-attachment-item .fw-semibold a { text-decoration:none; }
     .ll-attachment-item .fw-semibold a:hover { text-decoration:underline; }
 
-     /* Staged-deletion visual state: used when deletions are staged client-side
-         and will be applied only when the form is submitted. */
-     .ll-attachment-item.pending-delete { opacity: 0.5; text-decoration: line-through; background: rgba(255, 240, 240, 0.6); }
-
     /* 评论区背景和回复过渡 */
     /* 评论区背景与日记卡片一致，单条评论有独立的浅黄色底色，回复为浅绿色 */
     .comment-area{background: transparent; padding:1rem; border-radius:12px;}

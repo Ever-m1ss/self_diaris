@@ -37,9 +37,9 @@
 
       {% if allow_download %}
         {% if att.file %}
-            <a href="{% url 'learning_logs:preview_attachment' att.id %}" class="flex-grow-1 text-decoration-none text-body ll-attachment-preview-link">
-              {{ att.original_name|filename }}
-            </a>
+          <a href="{{ att.file.url }}" class="flex-grow-1 text-decoration-none text-body">
+            {{ att.original_name|filename }}
+          </a>
         {% else %}
           <span class="flex-grow-1 text-danger">(文件缺失) {{ att.original_name|filename }}</span>
         {% endif %}
@@ -55,7 +55,7 @@
   {# 避免 smartif 解析括号导致 '(user' token，拆成嵌套条件 #}
   {% if allow_modify %}
     {% if user == parent_owner or user == att.owner %}
-  <button type="button" class="btn btn-sm btn-outline-danger delete-attachment" data-id="{{ att.id }}" data-name="{{ att.original_name }}">删除</button>
+        <button class="btn btn-sm btn-outline-danger delete-attachment" data-id="{{ att.id }}" data-name="{{ att.original_name }}">删除</button>
     {% endif %}
   {% endif %}
     </div>

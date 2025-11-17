@@ -27,27 +27,18 @@
         {% endif %}
         {% bootstrap_form form show_labels=True %}
         <div class="mb-3">
-          <h6 class="mb-2">附件</h6>
-          <div class="ll-attachments" data-parent-type="topic" data-parent-id="{{ topic.id }}" data-async-upload="0">
+          <h6 class="mb-2">日记本附件（只读）</h6>
+          <div class="ll-attachments" data-parent-type="topic" data-parent-id="{{ topic.id }}">
             <div class="list-group list-group-flush ll-attach-list">
               {% include 'learning_logs/_attachment_tree.html' with tree=topic.attachment_tree parent_owner=topic.owner base='' allow_modify=False allow_download=False %}
             </div>
-            <div class="mt-2 d-flex gap-2 flex-wrap">
-              <label class="btn btn-outline-primary btn-sm mb-0">
-                选择文件
-                <input id="id_attachments" name="attachments" class="d-none" type="file" multiple>
-              </label>
-              <label class="btn btn-outline-primary btn-sm mb-0">
-                选择文件夹
-                <input id="id_attachments_folder" name="attachments" class="d-none" type="file" multiple webkitdirectory>
-              </label>
-            </div>
-            <div id="pending-uploads-region" class="mt-2">
-              <small class="text-muted">已选附件：</small>
-              <ul id="pending-uploads-list" class="list-unstyled mb-1"></ul>
-              <button type="button" id="clearFileSelection" class="btn btn-sm btn-outline-secondary" style="display:none">清除已选</button>
-            </div>
           </div>
+        </div>
+
+        <div class="mb-3">
+          <label class="form-label">上传附件（可多选，支持文件夹）</label>
+          <input id="id_attachments" name="attachments" type="file" multiple webkitdirectory directory class="form-control">
+          <div class="form-text">上传的附件会随本条日记一起保存，支持批量选择或选择文件夹（受浏览器支持）。</div>
         </div>
         {# 附件可见性继承所属日记设置，此处无需单独选择 #}
         <div class="d-flex justify-content-between mt-3">
@@ -60,80 +51,52 @@
         const ta = document.getElementById('id_text');
         const title = document.getElementById('id_title');
         const btn = document.getElementById('submitBtn');
-        const fileInput = document.getElementById('id_attachments');
-        const folderInput = document.getElementById('id_attachments_folder');
-        const clearBtn = document.getElementById('clearFileSelection');
-        const pendingList = document.getElementById('pending-uploads-list');
-        const form = document.querySelector('form');
-        if(!ta || !btn || !form) return;
-
+        if(!ta || !btn) return;
         function update(){
           const hasText = (ta.value || '').trim().length > 0;
           const hasTitle = title && (title.value || '').trim().length > 0;
-          const hasFiles = (fileInput && fileInput.files && fileInput.files.length>0) || (folderInput && folderInput.files && folderInput.files.length>0);
-          // 允许仅填写标题或正文或上传文件即可提交
+          // 允许仅填写标题或正文或仅上传附件即可提交
+          btn.disabled = !(hasText || hasTitle);
+          const fileInput = document.getElementById('id_attachments');
+          const hasFiles = fileInput && fileInput.files && fileInput.files.length > 0;
           btn.disabled = !(hasText || hasTitle || hasFiles);
         }
+        ta.addEventListener('input', update);
+        if(title) title.addEventListener('input', update);
+        const fileInputEl = document.getElementById('id_attachments');
+        if(fileInputEl) fileInputEl.addEventListener('change', update);
+        update();
 
-        function removeAllRelativePathInputs(){
-          Array.from(form.querySelectorAll('input[name^="relative_path["]')).forEach(el=>el.remove());
-        }
+        // On submit, create hidden inputs relative_path[<index>] for each file
+        const formEl = document.querySelector('form');
+        if(formEl) {
+          formEl.addEventListener('submit', function(e){
+            // Remove any previously added relative_path inputs
+            const old = formEl.querySelectorAll('input[name^="relative_path["]');
+            old.forEach(n => n.remove());
 
-        function syncRelativePaths(){
-          // Build relative_path[*] inputs by iterating file inputs in DOM order.
-          // This ensures indices align with what the browser sends in request.FILES.getlist('attachments').
-          removeAllRelativePathInputs();
-          const fileInputs = Array.from(form.querySelectorAll('input[type=file][name="attachments"]'));
-          const files = [];
-          fileInputs.forEach(fi=>{ files.push(...Array.from(fi.files || [])); });
-          files.forEach((f, idx)=>{
-            const rel = f.webkitRelativePath || f.relativePath || '';
-            const hidden = document.createElement('input');
-            hidden.type = 'hidden';
-            hidden.name = `relative_path[${idx}]`;
-            hidden.value = rel;
-            form.appendChild(hidden);
+            if(!fileInputEl || !fileInputEl.files || fileInputEl.files.length === 0) {
+              return; // nothing to add
+            }
+            // For each File, determine a safe relative path. Prefer webkitRelativePath when available.
+            Array.from(fileInputEl.files).forEach(function(f, idx){
+              let rel = '';
+              try {
+                rel = f.webkitRelativePath || f.relativePath || f.name;
+              } catch (err) {
+                rel = f.name;
+              }
+              // Normalize separators and remove leading slashes
+              rel = (rel || '').replace(/\\/g, '/').replace(/^\/+/, '');
+              // Create hidden input
+              const inp = document.createElement('input');
+              inp.type = 'hidden';
+              inp.name = 'relative_path[' + idx + ']';
+              inp.value = rel;
+              formEl.appendChild(inp);
+            });
           });
         }
-
-        function renderPendingUploads(){
-          // Ensure hidden relative_path inputs reflect current selection
-          syncRelativePaths();
-          pendingList.innerHTML = '';
-          const makeName = (f)=> (f.webkitRelativePath || f.relativePath || f.name || 'unknown');
-          // Aggregate files from all inputs named attachments in DOM order so preview order matches request.FILES
-          const fileInputs = Array.from(form.querySelectorAll('input[type=file][name="attachments"]'));
-          const files = [];
-          fileInputs.forEach(fi=> files.push(...Array.from(fi.files || [])));
-          Array.from(files).forEach(f=>{
-            const li = document.createElement('li');
-            li.className = 'small text-truncate';
-            li.textContent = makeName(f);
-            pendingList.appendChild(li);
-          });
-          if(pendingList.children.length>0){ clearBtn.style.display='inline-block'; } else { clearBtn.style.display='none'; }
-          update();
-        }
-
-        function clearSelections(){
-          if(fileInput) fileInput.value = '';
-          if(folderInput) folderInput.value = '';
-          removeAllRelativePathInputs();
-          renderPendingUploads();
-        }
-
-        [ta, title].forEach(el=>{ if(el) el.addEventListener('input', update); });
-        // Watch all file inputs with name=attachments so we always reflect the DOM order
-        Array.from(form.querySelectorAll('input[type=file][name="attachments"]')).forEach(fi=>{
-          fi.addEventListener('change', (e)=>{ syncRelativePaths(); renderPendingUploads(); });
-        });
-        // Ensure relative_path[*] inputs are built right before the form is submitted.
-        // In some environments (embedded browsers / remote sessions) input.files may
-        // not be populated until submit; rebuilding on submit guarantees the server
-        // receives matching relative_path indices for request.FILES.
-        form.addEventListener('submit', (e)=>{ syncRelativePaths(); });
-        if(clearBtn) clearBtn.addEventListener('click', clearSelections);
-        renderPendingUploads();
       })();
       </script>
     </div>
@@ -165,5 +128,5 @@
       caret_down: "{% static 'img/icons/caret-down.svg' %}",
     };
   </script>
-  {# 只读展示，不加载交互脚本 #}
+  {# 新建页允许上传，保留只读展示日记本附件的列表 #}
 {% endblock %}

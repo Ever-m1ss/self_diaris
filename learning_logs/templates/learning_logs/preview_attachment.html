@@ -15,25 +15,10 @@
   {# 返回键已统一放在导航栏左侧，删除页面内的额外返回链接 #}
   <div class="card">
     <div class="card-body">
-      {% if text %}
-        {# 使用 highlight.js 渲染代码高亮；对文本做 HTML 转义以免注入 #}
-        <pre class="mb-0"><code class="{{ lang_class }}">{{ text|escape }}</code></pre>
-      {% else %}
-        <div class="text-muted">此文件无法在线预览（非文本或类型不支持）。</div>
-      {% endif %}
+      <pre class="mb-0" style="white-space: pre-wrap; word-break: break-word;">{{ text }}</pre>
     </div>
   </div>
   <p class="mt-3">
-    原文件：<a class="btn btn-sm btn-outline-success" href="{% url 'learning_logs:download_attachment' attachment.id %}">下载 {{ attachment.original_name }}</a>
+    原文件：<a href="{{ attachment.file.url }}" download>{{ attachment.original_name }}</a>
   </p>
 {% endblock content %}
-
-{% block extra_head %}
-  {# highlight.js styles & script from CDN (可自托管以离线部署) #}
-  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
-{% endblock %}
-
-{% block extra_footer %}
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js"></script>
-  <script>document.addEventListener('DOMContentLoaded', ()=>{ document.querySelectorAll('pre code').forEach((el)=>{ try{ hljs.highlightElement(el); }catch(e){} }); });</script>
-{% endblock %}

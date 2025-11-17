@@ -29,25 +29,15 @@
         {% bootstrap_form form show_labels=True %}
         <div class="mb-3">
           <h6 class="mb-2">已有附件</h6>
-          <div class="ll-attachments" data-parent-type="entry" data-parent-id="{{ entry.id }}" {% if user == entry.owner %}data-can-edit="1"{% endif %} data-async-upload="0">
+          <div class="ll-attachments" data-parent-type="entry" data-parent-id="{{ entry.id }}" {% if user == entry.owner %}data-can-edit="1"{% endif %}>
             <div class="list-group list-group-flush ll-attach-list">
               {% include 'learning_logs/_attachment_tree.html' with tree=entry.attachment_tree parent_owner=entry.owner base='' allow_modify=True allow_download=False %}
             </div>
-              {% if user == entry.owner %}
-              <div class="mt-2 d-flex gap-2 flex-wrap">
-                <label class="btn btn-outline-primary btn-sm mb-0">
-                  选择文件
-                  <input id="id_attachments" name="attachments" class="d-none" type="file" multiple>
-                </label>
-                <label class="btn btn-outline-primary btn-sm mb-0">
-                  选择文件夹
-                  <input id="id_attachments_folder" name="attachments" class="d-none" type="file" multiple webkitdirectory>
-                </label>
-              </div>
-              <div id="pending-uploads-region" class="mt-2">
-                <small class="text-muted">已选附件：</small>
-                <ul id="pending-uploads-list" class="list-unstyled mb-1"></ul>
-                <button type="button" id="clearFileSelection" class="btn btn-sm btn-outline-secondary" style="display:none">清除已选</button>
+            {% if user == entry.owner %}
+              <div class="mt-2">
+                <label class="form-label">上传附件（可多选，支持文件夹）</label>
+                <input id="id_attachments" name="attachments" type="file" multiple webkitdirectory directory class="form-control">
+                <div class="form-text">上传的附件会随本条日记一起保存，支持批量选择或选择文件夹（受浏览器支持）。</div>
               </div>
             {% endif %}
           </div>
@@ -55,71 +45,45 @@
         {# 附件可见性继承所属日记设置，此处无需单独选择 #}
         <div class="d-flex justify-content-between mt-3">
            <a href="{% url 'learning_logs:topic_by_user' topic.owner.username topic.text %}" class="btn btn-outline-primary">取消</a>
-          <button type="submit" class="btn btn-primary">保存更改</button>
+          <button type="submit" id="saveBtn" class="btn btn-primary">保存更改</button>
         </div>
         <script>
         (function(){
-          const form = document.querySelector('form');
-          if(!form) return;
-          const fileInput = document.getElementById('id_attachments');
-          const folderInput = document.getElementById('id_attachments_folder');
-          const clearBtn = document.getElementById('clearFileSelection');
-          const pendingList = document.getElementById('pending-uploads-list');
+          const formEl = document.querySelector('form');
+          const fileInputEl = document.getElementById('id_attachments');
+          if(!formEl) return;
 
-          function removeAllRelativePathInputs(){
-            Array.from(form.querySelectorAll('input[name^="relative_path["]')).forEach(el=>el.remove());
-          }
+          // On submit, build relative_path[] inputs for folder-structured uploads and show confirm.
+          formEl.addEventListener('submit', function(e){
+            // If author did not include attachments input, just confirm and proceed
+            const proceed = confirm('确认保存更改？已选择的附件将一并上传。');
+            if(!proceed){
+              e.preventDefault();
+              return false;
+            }
 
-          function syncRelativePaths(){
-            // Build relative_path[*] inputs by iterating file inputs in DOM order
-            removeAllRelativePathInputs();
-            const fileInputs = Array.from(form.querySelectorAll('input[type=file][name="attachments"]'));
-            const files = [];
-            fileInputs.forEach(fi=>{ files.push(...Array.from(fi.files || [])); });
-            files.forEach((f, idx)=>{
-              const rel = f.webkitRelativePath || f.relativePath || '';
-              const hidden = document.createElement('input');
-              hidden.type = 'hidden';
-              hidden.name = `relative_path[${idx}]`;
-              hidden.value = rel;
-              form.appendChild(hidden);
+            // Remove any previously added relative_path inputs
+            const old = formEl.querySelectorAll('input[name^="relative_path["]');
+            old.forEach(n => n.remove());
+
+            if(!fileInputEl || !fileInputEl.files || fileInputEl.files.length === 0) {
+              return; // nothing to add
+            }
+            Array.from(fileInputEl.files).forEach(function(f, idx){
+              let rel = '';
+              try {
+                rel = f.webkitRelativePath || f.relativePath || f.name;
+              } catch (err) {
+                rel = f.name;
+              }
+              rel = (rel || '').replace(/\\/g, '/').replace(/^\/+/, '');
+              const inp = document.createElement('input');
+              inp.type = 'hidden';
+              inp.name = 'relative_path[' + idx + ']';
+              inp.value = rel;
+              formEl.appendChild(inp);
             });
-          }
-
-          function renderPendingUploads(){
-            if(!pendingList) return;
-            // Ensure hidden relative_path inputs reflect current selection
-            syncRelativePaths();
-            pendingList.innerHTML = '';
-            const makeName = (f)=> (f.webkitRelativePath || f.relativePath || f.name || 'unknown');
-            const fileInputs = Array.from(form.querySelectorAll('input[type=file][name="attachments"]'));
-            const files = [];
-            fileInputs.forEach(fi=> files.push(...Array.from(fi.files || [])));
-            Array.from(files).forEach(f=>{
-              const li = document.createElement('li');
-              li.className = 'small text-truncate';
-              li.textContent = makeName(f);
-              pendingList.appendChild(li);
-            });
-            if(pendingList.children.length>0){ clearBtn.style.display='inline-block'; } else { clearBtn.style.display='none'; }
-          }
-
-          function clearSelections(){
-            if(fileInput) fileInput.value = '';
-            if(folderInput) folderInput.value = '';
-            removeAllRelativePathInputs();
-            renderPendingUploads();
-          }
-
-          Array.from(form.querySelectorAll('input[type=file][name="attachments"]')).forEach(fi=>{
-            fi.addEventListener('change', (e)=>{ syncRelativePaths(); renderPendingUploads(); });
           });
-          if(clearBtn) clearBtn.addEventListener('click', clearSelections);
-          renderPendingUploads();
-          // Rebuild numeric relative_path[*] inputs just before submit to ensure
-          // they align with the files sent in request.FILES (some environments
-          // only populate input.files reliably at submit time).
-          form.addEventListener('submit', (e)=>{ syncRelativePaths(); });
         })();
         </script>
       </form>

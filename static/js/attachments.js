@@ -52,9 +52,9 @@
     item.appendChild(icon);
 
   const link = document.createElement('a');
-  // 文件名链接改为指向预览端点，预览页面负责高亮与下载操作；下载按钮仍走专用端点
-  link.href = `/attachments/preview/${a.id}/`;
-    link.target = '_self';
+  // 文件名链接使用原始文件 URL，便于图片/文本类直接预览；下载按钮仍走专用端点
+  link.href = a.url;
+    link.target = '_blank';
     link.className = 'flex-grow-1 text-decoration-none text-body';
     link.textContent = a.name;
     item.appendChild(link);
@@ -140,44 +140,6 @@
       console.error('Upload error', err);
       alert('上传失败: '+ err.message);
     }
-  }
-
-  // For wrappers that opt-out of async upload (data-async-upload="0"),
-  // render a staged preview of the selected files/folders in the UI
-  // without sending them to server. This mirrors the tree-building logic
-  // used after async upload so users see folder structure immediately.
-  function stageFiles(wrapper, files){
-    if(!files || !files.length) return;
-    const listContainer = wrapper.querySelector('.ll-attach-list') || wrapper;
-    // Ensure hidden relative_path inputs exist on the enclosing form
-    const form = wrapper.closest('form');
-    // Build items and insert into appropriate folder containers
-    Array.from(files).forEach((f, i)=>{
-      const rel = f.webkitRelativePath || f.relativePath || f.name || '';
-      // create a simple representation object similar to server response
-      const obj = { id: `staged-${Date.now()}-${i}`, name: f.name, size: f.size || 0, relative_path: rel, is_image: false, is_text: false, is_audio: false, is_video: false };
-      const newItem = buildItem(obj);
-      // staged items should not link to preview endpoint (no server id yet)
-      if(String(obj.id).startsWith('staged-')){
-        const a = newItem.querySelector('a');
-        if(a){ a.href = 'javascript:void(0)'; a.classList.add('staged-link'); }
-      }
-      newItem.classList.add('staged-attachment-item');
-      // ensure folder containers exist
-      let targetContainer = listContainer;
-      if (obj.relative_path && obj.relative_path.includes('/')){
-        targetContainer = ensureFolderPath(listContainer, obj.relative_path) || listContainer;
-      }
-      const inputContainer = (targetContainer === listContainer) ? listContainer.querySelector('.mt-2') : null;
-      if (inputContainer) {
-        targetContainer.insertBefore(newItem, inputContainer);
-      } else {
-        targetContainer.appendChild(newItem);
-      }
-      // Do NOT add hidden inputs here; the page-level script is responsible
-      // for building numeric relative_path[...] inputs so indices match
-      // request.FILES ordering when the form is submitted.
-    });
   }
 
   async function deleteItem(id, btn){
@@ -298,16 +260,8 @@
       input.addEventListener('change', (e)=>{
         const files = e.target.files;
         if(files && files.length){
-          const asyncAttr = wrapper.dataset.asyncUpload;
-          if(asyncAttr === '0'){
-            // staged mode: render preview locally instead of uploading
-            stageFiles(wrapper, files);
-            // do not clear input.value to allow form submission to include files
-          } else {
-            uploadBatch(wrapper, files);
-            // clear input after async upload to allow re-selecting same files
-            input.value=''; // reset
-          }
+          uploadBatch(wrapper, files);
+          input.value=''; // reset
         }
       });
     });
@@ -343,36 +297,7 @@
       // 附件删除（模板 class: ll-attach-del）
       const attDel = e.target.closest('.ll-attach-del') || e.target.closest('.delete-attachment');
       if(attDel){
-        const id = attDel.dataset.id;
-        // If this attachment sits inside a wrapper that opted out of async
-        // uploads (data-async-upload="0"), stage the deletion locally and
-        // only perform actual delete when the enclosing form is submitted.
-        const wrapper = attDel.closest('.ll-attachments');
-        const asyncAttr = wrapper?.dataset?.asyncUpload;
-        if(asyncAttr === '0'){
-          // toggle staged delete state on the attachment item
-          const item = attDel.closest('.ll-attachment-item');
-          if(!item) return;
-          const form = item.closest('form') || document.querySelector('form');
-          if(!form){
-            alert('无法找到表单以暂存删除操作');
-            return;
-          }
-          const hiddenName = 'pending_delete_attachment_ids';
-          const existing = form.querySelector(`input[name="${hiddenName}"][value="${id}"]`);
-          if(existing){
-            // 已标记为删除 -> 取消标记
-            existing.remove();
-            item.classList.remove('pending-delete');
-            attDel.textContent = '删除';
-          } else {
-            const hid = document.createElement('input'); hid.type='hidden'; hid.name=hiddenName; hid.value=id; form.appendChild(hid);
-            item.classList.add('pending-delete');
-            attDel.textContent = '取消删除';
-          }
-          return;
-        }
-        if(id) deleteItem(id, attDel);
+        const id = attDel.dataset.id; if(id) deleteItem(id, attDel);
       }
       const folderDel = e.target.closest('.ll-folder-del');
       if(folderDel){
@@ -443,16 +368,7 @@
   }
 
   document.addEventListener('DOMContentLoaded', ()=>{
-    // Only enhance wrappers that allow async upload. To stage attachments and
-    // only persist them on final form submit (new/edit pages), set
-    // data-async-upload="0" on the .ll-attachments container. By default
-    // enhancement remains enabled for pages that expect immediate async
-    // upload (discovery, comment upload UI, etc.).
-    // Enhance all wrappers; enhanceWrapper internally checks wrapper.dataset.asyncUpload
-    // and will either perform async uploads or stage files locally depending on that flag.
-    document.querySelectorAll('.ll-attachments').forEach((el)=>{
-      enhanceWrapper(el);
-    });
+    document.querySelectorAll('.ll-attachments').forEach(enhanceWrapper);
     bindGlobalClicks();
     // 目录展开/折叠逻辑（简化版 — 取消动画，保证兼容性）
     document.addEventListener('click', (e) => {
