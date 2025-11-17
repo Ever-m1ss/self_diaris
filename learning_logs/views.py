@@ -643,19 +643,29 @@ def preview_attachment(request, attachment_id):
     topic = att.topic or (entry.topic if entry else None)
     if topic is None:
         raise Http404
-    # 权限：访客也可查看公开内容；私密对象仅限作者/上传者
-    if topic.owner == request.user:
+    # 调试日志：记录访问者与附件公开性，用于排查游客访问问题
+    try:
+        import logging
+        log = logging.getLogger('learning_logs.preview')
+        log.debug('preview_attachment access id=%s user=%s user_id=%s topic_id=%s topic_public=%s entry_id=%s entry_public=%s att_public=%s att_owner=%s',
+                  att.id, getattr(request.user, 'username', None), getattr(request.user, 'id', None), getattr(topic, 'id', None), bool(getattr(topic, 'is_public', False)),
+                  getattr(entry, 'id', None), bool(getattr(entry, 'is_public', False)) if entry else None, bool(getattr(att, 'is_public', False)), getattr(att.owner, 'id', None))
+    except Exception:
         pass
-    else:
-        # 非作者：主题私密 -> 不可见
-        if not topic.is_public:
-            raise Http404
-        # 若有 entry：私密日记不可见
-        if entry and not entry.is_public:
-            raise Http404
-        # 附件私密时仅上传者可见
-        if not att.is_public and getattr(att.owner, 'id', None) != getattr(request.user, 'id', None):
-            raise Http404
+    # 权限判定（更明确）：允许访问的情况为：
+    # - 当前用户为主题作者；
+    # - 或主题为公开且（无 entry 或 entry 为公开）；
+    # - 或附件自身为公开；
+    # - 或当前用户为附件上传者。
+    user_is_owner = (topic.owner == request.user)
+    topic_public = bool(getattr(topic, 'is_public', False))
+    entry_public = True if entry is None else bool(getattr(entry, 'is_public', False))
+    att_public = bool(getattr(att, 'is_public', False))
+    user_is_att_owner = getattr(att.owner, 'id', None) == getattr(request.user, 'id', None)
+
+    allowed = user_is_owner or (topic_public and entry_public) or att_public or user_is_att_owner
+    if not allowed:
+        raise Http404
 
     # 根据附件类型选择预览方式：文本类读取片段，图片/音视频在模板中直接嵌入
     context = {'attachment': att, 'entry': entry, 'topic': topic}
@@ -688,6 +698,12 @@ def preview_attachment(request, attachment_id):
 def download_attachment(request, attachment_id):
     """提供单个附件文件下载，带原始文件名；遵循与预览相同的权限规则。"""
     att = get_object_or_404(Attachment, id=attachment_id)
+    try:
+        import logging
+        log = logging.getLogger('learning_logs.download')
+        log.debug('download_attachment request id=%s user=%s user_id=%s att_public=%s att_owner=%s', att.id, getattr(request.user, 'username', None), getattr(request.user, 'id', None), bool(getattr(att, 'is_public', False)), getattr(att.owner, 'id', None))
+    except Exception:
+        pass
     # 临时调试日志：定位不能下载的问题（仅在出问题阶段，后续可去掉）
     import logging
     log = logging.getLogger('learning_logs.download')
@@ -697,19 +713,17 @@ def download_attachment(request, attachment_id):
     if topic is None:
         log.warning('download_attachment topic_missing id=%s', att.id)
         raise Http404
-    # 权限校验（与 preview 基本一致）
-    if topic.owner == request.user:
-        pass
-    else:
-        if not topic.is_public:
-            log.warning('download_attachment topic_private id=%s user=%s', att.id, request.user)
-            raise Http404
-        if entry and not entry.is_public:
-            log.warning('download_attachment entry_private id=%s entry=%s user=%s', att.id, entry.id, request.user)
-            raise Http404
-        if not att.is_public and att.owner != request.user:
-            log.warning('download_attachment att_private id=%s owner=%s user=%s', att.id, att.owner_id, request.user.id)
-            raise Http404
+    # 权限判定（与 preview_attachment 保持一致）
+    user_is_owner = (topic.owner == request.user)
+    topic_public = bool(getattr(topic, 'is_public', False))
+    entry_public = True if entry is None else bool(getattr(entry, 'is_public', False))
+    att_public = bool(getattr(att, 'is_public', False))
+    user_is_att_owner = getattr(att.owner, 'id', None) == getattr(request.user, 'id', None)
+
+    allowed = user_is_owner or (topic_public and entry_public) or att_public or user_is_att_owner
+    if not allowed:
+        log.warning('download_attachment forbidden id=%s user=%s user_id=%s topic_public=%s entry_public=%s att_public=%s att_owner=%s', att.id, getattr(request.user, 'username', None), getattr(request.user, 'id', None), topic_public, entry_public, att_public, getattr(att.owner, 'id', None))
+        raise Http404
     f = att.file
     try:
         # 诊断读写：尝试读取首字节确认 storage 真正返回内容，然后重新打开以供 FileResponse 使用
