@@ -17,6 +17,57 @@ from django.utils import timezone
 import json
 
 
+def _parse_relative_paths(post_data):
+    """Parse relative_paths_json or per-file relative_path[*] inputs from POST data.
+    Returns (rel_index_map, rel_meta_map)
+    - rel_index_map: dict mapping index (string) -> path
+    - rel_meta_map: dict mapping 'name|size' -> path (from object entries)
+    """
+    rel_index_map = {}
+    rel_meta_map = {}
+    rp_json = post_data.get('relative_paths_json')
+    if rp_json:
+        try:
+            parsed = json.loads(rp_json)
+            if isinstance(parsed, list):
+                # If the list contains objects with name/size/path, build meta map
+                if len(parsed) and isinstance(parsed[0], dict):
+                    for i, item in enumerate(parsed):
+                        if not isinstance(item, dict):
+                            continue
+                        name = item.get('name')
+                        size = item.get('size')
+                        path = item.get('path') or item.get('rel') or ''
+                        if name and size is not None:
+                            rel_meta_map[f"{name}|{size}"] = path
+                        rel_index_map[str(i)] = path
+                else:
+                    for i, p in enumerate(parsed):
+                        rel_index_map[str(i)] = p
+            elif isinstance(parsed, dict):
+                for k, v in parsed.items():
+                    rel_index_map[str(k)] = v
+        except Exception:
+            rel_index_map = {}
+            rel_meta_map = {}
+    else:
+        # Fallback: parse per-file inputs relative_path[<idx>]
+        for k, v in post_data.items():
+            if k.startswith('relative_path[') and k.endswith(']'):
+                try:
+                    idx = k.split('relative_path[')[1].split(']')[0]
+                    rel_index_map[idx] = v
+                except Exception:
+                    continue
+            elif k.startswith('relative_path_'):
+                try:
+                    idx = k.split('relative_path_')[1]
+                    rel_index_map[idx] = v
+                except Exception:
+                    continue
+    return rel_index_map, rel_meta_map
+
+
 def index(request):
     """Home page: 未登录展示登录/注册；已登录展示“发现”：左侧日记本列表，右侧浏览所选日记本下的日记。"""
     # 左侧日记本：已登录用户看到自己 + 公开，未登录用户仅看到公开
@@ -156,7 +207,7 @@ def topic(request, topic_name, username=None):
             c.allow_modify = bool((c.user and c.user == request.user) or (entry.owner == request.user))
 
     # 为 topic 本身构建附件树
-    topic.attachment_tree = build_attachment_tree(topic.attachment_set.all())
+    topic.attachment_tree = build_attachment_tree(topic.attachment_set.filter(upload_session__isnull=True).all())
 
     comment_form = CommentForm()
     context = {'topic': topic, 'entries': entries, 'comment_form': comment_form}
@@ -193,7 +244,7 @@ def discovey(request, topic_name, username=None):
             c.allow_modify = bool((c.user and c.user == request.user) or (entry.owner == request.user))
 
     # 为 topic 本身构建附件树
-    topic.attachment_tree = build_attachment_tree(topic.attachment_set.all())
+    topic.attachment_tree = build_attachment_tree(topic.attachment_set.filter(upload_session__isnull=True).all())
 
     comment_form = CommentForm()
 
@@ -268,34 +319,8 @@ def new_topic(request):
             # 支持两种前端传参格式：
             # 1) 多个 hidden inputs: relative_path[0]=..., relative_path[1]=... （向后兼容）
             # 2) 单个 hidden JSON 字段: relative_paths_json = JSON array or dict
-            rel_paths = {}
-            rp_json = request.POST.get('relative_paths_json')
-            if rp_json:
-                try:
-                    parsed = json.loads(rp_json)
-                    if isinstance(parsed, list):
-                        for i, p in enumerate(parsed):
-                            rel_paths[str(i)] = p
-                    elif isinstance(parsed, dict):
-                        for k, v in parsed.items():
-                            rel_paths[str(k)] = v
-                except Exception:
-                    rel_paths = {}
-            else:
-                for k, v in request.POST.items():
-                    if k.startswith('relative_path[') and k.endswith(']'):
-                        try:
-                            idx = k.split('relative_path[')[1].split(']')[0]
-                            rel_paths[idx] = v
-                        except Exception:
-                            continue
-                    elif k.startswith('relative_path_'):
-                        try:
-                            idx = k.split('relative_path_')[1]
-                            rel_paths[idx] = v
-                        except Exception:
-                            continue
-            _save_attachments_from_request(files, request.user, topic=new_topic, relative_paths=rel_paths)
+            rel_index_map, rel_meta_map = _parse_relative_paths(request.POST)
+            _save_attachments_from_request(files, request.user, topic=new_topic, relative_paths=rel_index_map, relative_meta=rel_meta_map)
             return redirect('learning_logs:topics')
 
     # Display a blank or invalid form.
@@ -330,39 +355,12 @@ def new_entry(request, topic_id):
             form.add_error(None, '上传的表单内容无法解析（可能文件过大或请求异常）。')
             files = []
         # 支持文件夹上传：前端通过 single JSON hidden input `relative_paths_json` 或多个 hidden inputs `relative_path[...]`
-        rel_paths = {}
-        rp_json = request.POST.get('relative_paths_json')
-        if rp_json:
-            try:
-                parsed = json.loads(rp_json)
-                if isinstance(parsed, list):
-                    for i, p in enumerate(parsed):
-                        rel_paths[str(i)] = p
-                elif isinstance(parsed, dict):
-                    for k, v in parsed.items():
-                        rel_paths[str(k)] = v
-            except Exception:
-                rel_paths = {}
-        else:
-            for k, v in request.POST.items():
-                if k.startswith('relative_path[') and k.endswith(']'):
-                    try:
-                        idx = k.split('relative_path[')[1].split(']')[0]
-                        rel_paths[idx] = v
-                    except Exception:
-                        continue
-                # 兼容其它可能格式：relative_path_0
-                elif k.startswith('relative_path_'):
-                    try:
-                        idx = k.split('relative_path_')[1]
-                        rel_paths[idx] = v
-                    except Exception:
-                        continue
+        rel_index_map, rel_meta_map = _parse_relative_paths(request.POST)
         # 简短调试日志（仅在需要时可查看）
         try:
             import logging
             log = logging.getLogger('learning_logs.new_entry')
-            log.debug('new_entry files=%s names=%s rel_paths=%s', len(files) if files is not None else 0, [getattr(f, 'name', None) for f in files], rel_paths)
+            log.debug('new_entry files=%s names=%s rel_index_map=%s rel_meta_map=%s', len(files) if files is not None else 0, [getattr(f, 'name', None) for f in files], rel_index_map, rel_meta_map)
         except Exception:
             pass
         if form.is_valid():
@@ -376,7 +374,7 @@ def new_entry(request, topic_id):
                 new_entry.owner = request.user
                 new_entry.save()
                 # 附件（可选，批量）
-                _save_attachments_from_request(files, request.user, entry=new_entry, relative_paths=rel_paths)
+                _save_attachments_from_request(files, request.user, entry=new_entry, relative_paths=rel_index_map, relative_meta=rel_meta_map)
                 # If the client used async upload to the topic before creating the entry,
                 # reassign any topic-level attachments for this upload_session to this new entry.
                 session_key = request.POST.get('upload_session')
@@ -399,7 +397,7 @@ def new_entry(request, topic_id):
     # Display a blank or invalid form.
     # 构建日记本附件树供页面展示
     try:
-        topic.attachment_tree = build_attachment_tree(topic.attachment_set.all())
+        topic.attachment_tree = build_attachment_tree(topic.attachment_set.filter(upload_session__isnull=True).all())
     except Exception:
         topic.attachment_tree = {}
     context = {'topic': topic, 'form': form}
@@ -441,40 +439,14 @@ def edit_entry(request, entry_id):
                 log = logging.getLogger('learning_logs.edit_entry')
                 log.exception('Failed to parse uploaded files in edit_entry: %s', e)
                 files = []
-            rel_paths = {}
-            rp_json = request.POST.get('relative_paths_json')
-            if rp_json:
-                try:
-                    parsed = json.loads(rp_json)
-                    if isinstance(parsed, list):
-                        for i, p in enumerate(parsed):
-                            rel_paths[str(i)] = p
-                    elif isinstance(parsed, dict):
-                        for k, v in parsed.items():
-                            rel_paths[str(k)] = v
-                except Exception:
-                    rel_paths = {}
-            else:
-                for k, v in request.POST.items():
-                    if k.startswith('relative_path[') and k.endswith(']'):
-                        try:
-                            idx = k.split('relative_path[')[1].split(']')[0]
-                            rel_paths[idx] = v
-                        except Exception:
-                            continue
-                    elif k.startswith('relative_path_'):
-                        try:
-                            idx = k.split('relative_path_')[1]
-                            rel_paths[idx] = v
-                        except Exception:
-                            continue
+            rel_index_map, rel_meta_map = _parse_relative_paths(request.POST)
             try:
                 import logging
                 log = logging.getLogger('learning_logs.edit_entry')
-                log.debug('edit_entry files=%s names=%s rel_paths=%s', len(files) if files is not None else 0, [getattr(f, 'name', None) for f in files], rel_paths)
+                log.debug('edit_entry files=%s names=%s rel_index_map=%s rel_meta_map=%s', len(files) if files is not None else 0, [getattr(f, 'name', None) for f in files], rel_index_map, rel_meta_map)
             except Exception:
                 pass
-            _save_attachments_from_request(files, request.user, entry=entry, relative_paths=rel_paths)
+            _save_attachments_from_request(files, request.user, entry=entry, relative_paths=rel_index_map, relative_meta=rel_meta_map)
             try:
                 url = reverse('learning_logs:topic_by_user', kwargs={'username': topic.owner.username, 'topic_name': topic.text})
                 return redirect(url)
@@ -518,11 +490,18 @@ def delete_entry(request, entry_id):
     })
 
 
-def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comment=None, relative_paths=None, upload_session=None):
+def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comment=None, relative_paths=None, relative_meta=None, upload_session=None):
     if not files:
         return []
+    try:
+        import logging
+        logging.getLogger('learning_logs.save_attach').debug('_save_attachments_from_request called files=%s rel_index_keys=%s rel_meta_keys=%s topic=%s entry=%s comment=%s upload_session=%s',
+            len(files), list(relative_paths.keys()) if relative_paths else [], list(relative_meta.keys()) if relative_meta else [], getattr(topic,'id', None), getattr(entry,'id', None), getattr(comment,'id', None), upload_session)
+    except Exception:
+        pass
     created = []
     rel_map = {}
+    meta_map = {}
     if relative_paths:
         # relative_paths may be a mapping of numeric indices to paths or be a dict/list parsed from JSON
         for idx, rp in relative_paths.items():
@@ -531,6 +510,12 @@ def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comm
             except Exception:
                 # keep non-numeric mapping as-is; we'll also build name-based fallback later
                 rel_map[str(idx)] = rp
+    if relative_meta:
+        for k, v in relative_meta.items():
+            try:
+                meta_map[str(k)] = v
+            except Exception:
+                continue
 
     def _sanitize_rel_path(p: str) -> str:
         """清洗相对路径，确保：
@@ -592,10 +577,23 @@ def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comm
                     if v.endswith('/' + f.name) or v.endswith('\\' + f.name) or v == f.name:
                         rp_raw = v
                         break
+                # Try meta_map by name|size key
+                try:
+                    key = f"{getattr(f, 'name', '')}|{getattr(f, 'size', '')}"
+                    if meta_map.get(key):
+                        rp_raw = meta_map.get(key)
+                except Exception:
+                    pass
         if rp_raw:
             _rp = _sanitize_rel_path(rp_raw)
             if _rp:
                 att.relative_path = _rp
+        else:
+            try:
+                import logging
+                logging.getLogger('learning_logs.save_attach').debug('No relative path match for file idx=%s name=%s size=%s rel_map_keys=%s meta_keys_sample=%s', idx, getattr(f,'name',None), getattr(f,'size',None), list(rel_map.keys())[:5], list(meta_map.keys())[:5])
+            except Exception:
+                pass
         if upload_session:
             att.upload_session = upload_session
         try:
@@ -757,43 +755,27 @@ def upload_attachments_api(request):
     except Exception:
         pass
 
-    rel_paths = {}
+    # Parse relative paths from POST (supports object list with name/size/path)
+    # Defensive: if client sent extremely large JSON, limit its length
     rp_json = request.POST.get('relative_paths_json')
-    if rp_json:
+    if isinstance(rp_json, str) and len(rp_json) > 20000:
         try:
-            # Defensive: if client sent extremely large JSON, limit its length
-            if isinstance(rp_json, str) and len(rp_json) > 20000:
-                try:
-                    import logging
-                    logging.getLogger('learning_logs.upload').warning('relative_paths_json unusually large, truncating length=%s', len(rp_json))
-                except Exception:
-                    pass
-                rp_json = rp_json[:20000]
-            parsed = json.loads(rp_json)
-            if isinstance(parsed, list):
-                for i, p in enumerate(parsed):
-                    rel_paths[str(i)] = p
-            elif isinstance(parsed, dict):
-                for k, v in parsed.items():
-                    rel_paths[str(k)] = v
+            import logging
+            logging.getLogger('learning_logs.upload').warning('relative_paths_json unusually large, truncating length=%s', len(rp_json))
         except Exception:
-            try:
-                import logging
-                logging.getLogger('learning_logs.upload').exception('Failed to parse relative_paths_json')
-            except Exception:
-                pass
-            rel_paths = {}
-    else:
-        rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
+            pass
+        # truncate to avoid parsing overly large payloads
+        rp_json = rp_json[:20000]
+    rel_index_map, rel_meta_map = _parse_relative_paths(request.POST)
     try:
         try:
             import logging
             upload_log = logging.getLogger('learning_logs.upload')
-            upload_log.debug('upload_attachments_api files=%s names=%s rel_paths=%s', len(files), [getattr(f, 'name', None) for f in files], rel_paths)
+            upload_log.debug('upload_attachments_api files=%s names=%s rel_index_map=%s rel_meta_map=%s referer=%s', len(files), [getattr(f, 'name', None) for f in files], rel_index_map, rel_meta_map, request.META.get('HTTP_REFERER'))
         except Exception:
             pass
         upload_session = request.POST.get('upload_session')
-        created = _save_attachments_from_request(files, request.user, **kw, relative_paths=rel_paths, upload_session=upload_session)
+        created = _save_attachments_from_request(files, request.user, **kw, relative_paths=rel_index_map, relative_meta=rel_meta_map, upload_session=upload_session)
     except Exception as e:
         import logging
         log = logging.getLogger('learning_logs.upload')
@@ -1101,21 +1083,7 @@ def add_comment(request, entry_id):
             comment.name = ''
         files = request.FILES.getlist('comment_attachments')
         # 支持文件夹上传的相对路径映射：relative_paths_json (优先) 或 relative_path[<index>] = path
-        rel_paths = {}
-        rp_json = request.POST.get('relative_paths_json')
-        if rp_json:
-            try:
-                parsed = json.loads(rp_json)
-                if isinstance(parsed, list):
-                    for i, p in enumerate(parsed):
-                        rel_paths[str(i)] = p
-                elif isinstance(parsed, dict):
-                    for k, v in parsed.items():
-                        rel_paths[str(k)] = v
-            except Exception:
-                rel_paths = {}
-        else:
-            rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
+        rel_index_map, rel_meta_map = _parse_relative_paths(request.POST)
         # 若文本与附件皆为空，则忽略此次提交
         if (not (comment.text or '').strip()) and not files:
             try:
@@ -1125,7 +1093,7 @@ def add_comment(request, entry_id):
                 return redirect('learning_logs:topic', topic_name=topic.text)
         comment.save()
         # 保存评论附件（可多文件）
-        _save_attachments_from_request(files, request.user, comment=comment, relative_paths=rel_paths)
+        _save_attachments_from_request(files, request.user, comment=comment, relative_paths=rel_index_map, relative_meta=rel_meta_map)
 
     # Redirect back to discovery view for the topic if available (preserve user-prefixed path)
     try:

@@ -78,14 +78,22 @@
             let allFiles = [];
             fileInputs.forEach(function(inp){ if(inp.files && inp.files.length){ allFiles = allFiles.concat(Array.from(inp.files)); }});
             if(allFiles.length === 0) return;
-            const paths = allFiles.map(function(f){
-              let rel = '';
-              try { rel = f.webkitRelativePath || f.relativePath || f.name; } catch(err){ rel = f.name; }
-              return (rel || '').replace(/\\/g, '/').replace(/^\/+/, '');
-            });
+              for (let f of allFiles){
+                if(/[\r\n\0]/.test(f.name)){
+                  alert('文件名包含非法字符（换行或控制字符），请重命名后重试。');
+                  e.preventDefault();
+                  return;
+                }
+              }
+              const paths = allFiles.map(function(f){
+                let rel = '';
+                try { rel = f.webkitRelativePath || f.relativePath || f.name; } catch(err){ rel = f.name; }
+                const relClean = (rel || '').replace(/\\/g, '/').replace(/^\/+/, '');
+                return {name: f.name, size: f.size, path: relClean};
+              });
             const jsonInp = document.createElement('input'); jsonInp.type='hidden'; jsonInp.name='relative_paths_json'; jsonInp.value=JSON.stringify(paths); formEl.appendChild(jsonInp);
             // Also add per-file relative_path[index] hidden inputs as fallback
-            paths.forEach(function(p, idx){ const h = document.createElement('input'); h.type='hidden'; h.name=`relative_path[${idx}]`; h.value=p; formEl.appendChild(h); });
+              paths.forEach(function(p, idx){ const h = document.createElement('input'); h.type='hidden'; h.name=`relative_path[${idx}]`; h.value=p.path; formEl.appendChild(h); });
           });
         })();
         </script>

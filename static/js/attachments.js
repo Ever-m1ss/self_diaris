@@ -84,6 +84,15 @@
   }
 
   async function uploadBatch(wrapper, files){
+    // If wrapper contains an input marked data-no-async or wrapper itself is marked, treat files as staged
+    if (wrapper.querySelector('input[type=file][data-no-async]') || wrapper.hasAttribute('data-no-async')){
+      try {
+        const input = wrapper.querySelector('input[type=file][data-no-async]');
+        if (input) renderStagedFiles(wrapper, files, input);
+      } catch (err) { console.warn('uploadBatch staged fallback failed', err); }
+      return;
+    }
+
     const parentType=wrapper.dataset.parentType;
     const parentId=wrapper.dataset.parentId;
     if(!files.length) return;
@@ -97,10 +106,12 @@
     const fd = new FormData();
     const paths = [];
     [...files].forEach((f,i)=>{
-      fd.append('files', f, f.name);
+      const sanitizedName = (f.name || '').replace(/\r|\n|\0/g, '_');
+      fd.append('files', f, sanitizedName);
       const rel = f.webkitRelativePath || f.relativePath || '';
-      paths.push((rel || '').replace(/\\/g,'/').replace(/^\/+/, ''));
-      if(rel) fd.append(`relative_path[${i}]`, rel);
+      const relClean = (rel || '').replace(/\\/g,'/').replace(/^\/+/, '');
+      paths.push({name: sanitizedName, size: f.size, path: relClean});
+      if(relClean) fd.append(`relative_path[${i}]`, relClean);
     });
     // Add JSON field to reduce number of fields for large batches; backend accepts both.
     try{
@@ -377,7 +388,7 @@
       if(files && files.length){
         // If wrapper contains file inputs marked data-no-async, treat drop as staged and
         // render previews into the wrapper using the first such input; otherwise perform async upload.
-        const noAsyncInput = wrapper.querySelector('input[type=file][data-no-async]');
+        const noAsyncInput = wrapper.querySelector('input[type=file][data-no-async]') || (wrapper.hasAttribute('data-no-async')? wrapper.querySelector('input[type=file]') : null);
         if (noAsyncInput) {
           renderStagedFiles(wrapper, files, noAsyncInput);
         } else {
