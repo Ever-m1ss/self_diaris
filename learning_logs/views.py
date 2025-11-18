@@ -210,8 +210,18 @@ def topic(request, topic_name, username=None):
             # 评论附件的编辑权限：评论作者或日记作者可修改
             c.allow_modify = bool((c.user and c.user == request.user) or (entry.owner == request.user))
 
-    # 为 topic 本身构建附件树
-    topic.attachment_tree = build_attachment_tree(topic.attachment_set.filter(upload_session__isnull=True).all())
+    # 为 topic 本身构建附件树，过滤掉还带 upload_session 的临时资源
+    try:
+        topic.attachment_tree = build_attachment_tree(topic.attachment_set.filter(upload_session__isnull=True).all())
+    except Exception as e:
+        try:
+            import logging
+            log = logging.getLogger('learning_logs.topic')
+            log.exception('Failed to build topic attachment tree for topic_id=%s name=%s user=%s headers=%s error=%s', getattr(topic,'id',None), topic_name, getattr(request.user,'id',None), { 'UA': request.META.get('HTTP_USER_AGENT'), 'Referer': request.META.get('HTTP_REFERER') }, e)
+        except Exception:
+            pass
+        # Re-raise to keep behavior (most errs will be handled by Django middleware). Alternatively return 500 with message if wanted.
+        raise
 
     comment_form = CommentForm()
     context = {'topic': topic, 'entries': entries, 'comment_form': comment_form}
