@@ -64,24 +64,33 @@
         function update(){
           const hasText = (ta.value || '').trim().length > 0;
           const hasTitle = title && (title.value || '').trim().length > 0;
+          // 检查表单内是否存在选中的文件（支持多个 attachments inputs）
+          const hasFiles = hasFilesInForm();
           // 允许仅填写标题或正文或仅上传附件即可提交
-          btn.disabled = !(hasText || hasTitle);
-          const fileInput = document.getElementById('id_attachments');
-          const hasFiles = fileInput && fileInput.files && fileInput.files.length > 0;
           btn.disabled = !(hasText || hasTitle || hasFiles);
         }
         ta.addEventListener('input', update);
         if(title) title.addEventListener('input', update);
-        const fileInputEl = document.getElementById('id_attachments');
-        if(fileInputEl) fileInputEl.addEventListener('change', update);
+        // 检查表单内所有 name="attachments" 的 file inputs
+        function hasFilesInForm() {
+          const fileInputs = Array.from(document.querySelectorAll('form input[type=file][name="attachments"]'));
+          for (let i = 0; i < fileInputs.length; i++) {
+            const fi = fileInputs[i];
+            if (fi && fi.files && fi.files.length > 0) return true;
+          }
+          return false;
+        }
+        // 为所有 file inputs 绑定 change 事件以触发按钮状态更新
+        Array.from(document.querySelectorAll('form input[type=file][name="attachments"]')).forEach(function(fi){ fi.addEventListener('change', update); });
         update();
 
         // On submit, create hidden inputs relative_path[<index>] for each file collected from all attachments inputs
         const formEl = document.querySelector('form');
         if(formEl) {
           formEl.addEventListener('submit', function(e){
-            // Remove any previously added relative_path inputs
+            // 移除旧字段，兼容之前的实现
             Array.from(formEl.querySelectorAll('input[name^="relative_path["]')).forEach(n => n.remove());
+            Array.from(formEl.querySelectorAll('input[name="relative_paths_json"]')).forEach(n => n.remove());
 
             // Collect files from all inputs named attachments inside this form
             const fileInputs = Array.from(formEl.querySelectorAll('input[type=file][name="attachments"]'));
@@ -92,14 +101,14 @@
               }
             });
             if(allFiles.length === 0) return;
-            allFiles.forEach(function(f, idx){
+            const paths = allFiles.map(function(f){
               let rel = '';
               try { rel = f.webkitRelativePath || f.relativePath || f.name; } catch(err){ rel = f.name; }
-              rel = (rel || '').replace(/\\/g, '/').replace(/^\/+/, '');
-              const inp = document.createElement('input');
-              inp.type = 'hidden'; inp.name = 'relative_path[' + idx + ']'; inp.value = rel;
-              formEl.appendChild(inp);
+              return (rel || '').replace(/\\/g, '/').replace(/^\/+/, '');
             });
+            const jsonInp = document.createElement('input');
+            jsonInp.type = 'hidden'; jsonInp.name = 'relative_paths_json'; jsonInp.value = JSON.stringify(paths);
+            formEl.appendChild(jsonInp);
           });
         }
       })();

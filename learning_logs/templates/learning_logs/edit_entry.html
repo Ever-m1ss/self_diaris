@@ -69,20 +69,21 @@
               return false;
             }
 
-            // Remove any previously added relative_path inputs
+            // Remove any previously added relative_path inputs or json field
             Array.from(formEl.querySelectorAll('input[name^="relative_path["]')).forEach(n=>n.remove());
+            Array.from(formEl.querySelectorAll('input[name="relative_paths_json"]')).forEach(n=>n.remove());
 
             // Collect files from all inputs named attachments inside this form
             const fileInputs = Array.from(formEl.querySelectorAll('input[type=file][name="attachments"]'));
             let allFiles = [];
             fileInputs.forEach(function(inp){ if(inp.files && inp.files.length){ allFiles = allFiles.concat(Array.from(inp.files)); }});
             if(allFiles.length === 0) return;
-            allFiles.forEach(function(f, idx){
+            const paths = allFiles.map(function(f){
               let rel = '';
               try { rel = f.webkitRelativePath || f.relativePath || f.name; } catch(err){ rel = f.name; }
-              rel = (rel || '').replace(/\\/g, '/').replace(/^\/+/, '');
-              const inp = document.createElement('input'); inp.type='hidden'; inp.name='relative_path['+idx+']'; inp.value=rel; formEl.appendChild(inp);
+              return (rel || '').replace(/\\/g, '/').replace(/^\/+/, '');
             });
+            const jsonInp = document.createElement('input'); jsonInp.type='hidden'; jsonInp.name='relative_paths_json'; jsonInp.value=JSON.stringify(paths); formEl.appendChild(jsonInp);
           });
         })();
         </script>

@@ -21,7 +21,7 @@
     return (bytes/Math.pow(k,i)).toFixed(i?1:0)+' '+units[i];
   }
 
-  function buildItem(a){
+  function buildItem(a, opts){
     const item=document.createElement('div');
     item.className='list-group-item list-group-item-action d-flex align-items-center ll-attachment-item';
     item.dataset.id=a.id;
@@ -64,11 +64,22 @@
   sizeSpan.textContent = humanSize(a.size);
   item.appendChild(sizeSpan);
   // 下载按钮（outline 绿色）
-  const dl = document.createElement('a');
-  dl.className='btn btn-sm btn-outline-success me-2';
-  dl.textContent='下载';
-  dl.href='/attachments/download/'+a.id+'/';
-  item.appendChild(dl);
+  // 根据上下文 decide 按钮：如果允许编辑（即处于新建/编辑上下文），显示删除按钮；否则显示下载按钮
+  const canEdit = opts && opts.canEdit;
+  if (canEdit) {
+    const del = document.createElement('button');
+    del.type = 'button';
+    del.className = 'btn btn-sm btn-outline-danger me-2 ll-attach-del';
+    del.textContent = '删除';
+    del.dataset.id = a.id;
+    item.appendChild(del);
+  } else {
+    const dl = document.createElement('a');
+    dl.className='btn btn-sm btn-outline-success me-2';
+    dl.textContent='下载';
+    dl.href='/attachments/download/'+a.id+'/';
+    item.appendChild(dl);
+  }
 
     // Delete button needs owner info, which we don't have here.
     // It will be added if the current user is the owner.
@@ -122,7 +133,8 @@
       // 简化处理：将新文件追加到容器（树状视图下一次刷新会重建层级）
       // 动态将文件插入对应的文件夹层级（无需刷新）
       data.files.forEach(f=>{
-        const newItem = buildItem(f);
+        const canEdit = wrapper.dataset.canEdit && wrapper.dataset.canEdit !== '0' ? true : false;
+        const newItem = buildItem(f, {canEdit: canEdit});
         let targetContainer = listContainer;
         if (f.relative_path && f.relative_path.includes('/')) {
           // ensureFolderPath 期望传入包含文件名的完整路径，它内部会去掉最后一段作为文件夹链

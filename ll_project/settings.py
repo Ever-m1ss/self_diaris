@@ -191,6 +191,11 @@ LOGIN_URL = 'accounts:login'
 DATA_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024 * 1024  # 1 GiB
 FILE_UPLOAD_MAX_MEMORY_SIZE = 1 * 1024 * 1024 * 1024  # 1 GiB
 
+# 当上传整个文件夹时，会产生大量字段（每个文件一个 file input + 一个相对路径 hidden input），
+# 默认的 DATA_UPLOAD_MAX_NUMBER_FIELDS=1000 可能导致 Django 抛出 Bad Request (400)。
+# 提高此值以允许较大的文件/文件夹上传。
+DATA_UPLOAD_MAX_NUMBER_FIELDS = 20000
+
 # Ensure uncommon extensions are served with correct MIME types (e.g., custom H.264 files)
 # Some users may place files with non-standard extensions like .m246; map them to video/mp4
 mimetypes.add_type('video/mp4', '.m246', strict=False)

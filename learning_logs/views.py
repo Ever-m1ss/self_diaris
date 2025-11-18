@@ -14,6 +14,7 @@ import re
 from .forms import TopicForm, EntryForm, CommentForm
 from django.db import transaction
 from django.utils import timezone
+import json
 
 
 def index(request):
@@ -264,20 +265,36 @@ def new_topic(request):
             new_topic.save()
             # 处理附件（可选，多文件/文件夹）
             files = request.FILES.getlist('attachments') or request.FILES.getlist('attachments[]') or request.FILES.getlist('files') or request.FILES.getlist('files[]')
+            # 支持两种前端传参格式：
+            # 1) 多个 hidden inputs: relative_path[0]=..., relative_path[1]=... （向后兼容）
+            # 2) 单个 hidden JSON 字段: relative_paths_json = JSON array or dict
             rel_paths = {}
-            for k, v in request.POST.items():
-                if k.startswith('relative_path[') and k.endswith(']'):
-                    try:
-                        idx = k.split('relative_path[')[1].split(']')[0]
-                        rel_paths[idx] = v
-                    except Exception:
-                        continue
-                elif k.startswith('relative_path_'):
-                    try:
-                        idx = k.split('relative_path_')[1]
-                        rel_paths[idx] = v
-                    except Exception:
-                        continue
+            rp_json = request.POST.get('relative_paths_json')
+            if rp_json:
+                try:
+                    parsed = json.loads(rp_json)
+                    if isinstance(parsed, list):
+                        for i, p in enumerate(parsed):
+                            rel_paths[str(i)] = p
+                    elif isinstance(parsed, dict):
+                        for k, v in parsed.items():
+                            rel_paths[str(k)] = v
+                except Exception:
+                    rel_paths = {}
+            else:
+                for k, v in request.POST.items():
+                    if k.startswith('relative_path[') and k.endswith(']'):
+                        try:
+                            idx = k.split('relative_path[')[1].split(']')[0]
+                            rel_paths[idx] = v
+                        except Exception:
+                            continue
+                    elif k.startswith('relative_path_'):
+                        try:
+                            idx = k.split('relative_path_')[1]
+                            rel_paths[idx] = v
+                        except Exception:
+                            continue
             _save_attachments_from_request(files, request.user, topic=new_topic, relative_paths=rel_paths)
             return redirect('learning_logs:topics')
 
@@ -305,22 +322,35 @@ def new_entry(request, topic_id):
         form = EntryForm(data=request.POST)
         # 尝试从多种可能的字段名读取上传的文件（兼容不同前端实现）
         files = request.FILES.getlist('attachments') or request.FILES.getlist('attachments[]') or request.FILES.getlist('files') or request.FILES.getlist('files[]')
-        # 支持文件夹上传：前端通过 hidden input 提交 relative_path[index]
+        # 支持文件夹上传：前端通过 single JSON hidden input `relative_paths_json` 或多个 hidden inputs `relative_path[...]`
         rel_paths = {}
-        for k, v in request.POST.items():
-            if k.startswith('relative_path[') and k.endswith(']'):
-                try:
-                    idx = k.split('relative_path[')[1].split(']')[0]
-                    rel_paths[idx] = v
-                except Exception:
-                    continue
-            # 兼容其它可能格式：relative_path_0
-            elif k.startswith('relative_path_'):
-                try:
-                    idx = k.split('relative_path_')[1]
-                    rel_paths[idx] = v
-                except Exception:
-                    continue
+        rp_json = request.POST.get('relative_paths_json')
+        if rp_json:
+            try:
+                parsed = json.loads(rp_json)
+                if isinstance(parsed, list):
+                    for i, p in enumerate(parsed):
+                        rel_paths[str(i)] = p
+                elif isinstance(parsed, dict):
+                    for k, v in parsed.items():
+                        rel_paths[str(k)] = v
+            except Exception:
+                rel_paths = {}
+        else:
+            for k, v in request.POST.items():
+                if k.startswith('relative_path[') and k.endswith(']'):
+                    try:
+                        idx = k.split('relative_path[')[1].split(']')[0]
+                        rel_paths[idx] = v
+                    except Exception:
+                        continue
+                # 兼容其它可能格式：relative_path_0
+                elif k.startswith('relative_path_'):
+                    try:
+                        idx = k.split('relative_path_')[1]
+                        rel_paths[idx] = v
+                    except Exception:
+                        continue
         # 简短调试日志（仅在需要时可查看）
         try:
             import logging
@@ -386,19 +416,32 @@ def edit_entry(request, entry_id):
             # 可在编辑时追加附件（含文件夹）
             files = request.FILES.getlist('attachments') or request.FILES.getlist('attachments[]') or request.FILES.getlist('files') or request.FILES.getlist('files[]')
             rel_paths = {}
-            for k, v in request.POST.items():
-                if k.startswith('relative_path[') and k.endswith(']'):
-                    try:
-                        idx = k.split('relative_path[')[1].split(']')[0]
-                        rel_paths[idx] = v
-                    except Exception:
-                        continue
-                elif k.startswith('relative_path_'):
-                    try:
-                        idx = k.split('relative_path_')[1]
-                        rel_paths[idx] = v
-                    except Exception:
-                        continue
+            rp_json = request.POST.get('relative_paths_json')
+            if rp_json:
+                try:
+                    parsed = json.loads(rp_json)
+                    if isinstance(parsed, list):
+                        for i, p in enumerate(parsed):
+                            rel_paths[str(i)] = p
+                    elif isinstance(parsed, dict):
+                        for k, v in parsed.items():
+                            rel_paths[str(k)] = v
+                except Exception:
+                    rel_paths = {}
+            else:
+                for k, v in request.POST.items():
+                    if k.startswith('relative_path[') and k.endswith(']'):
+                        try:
+                            idx = k.split('relative_path[')[1].split(']')[0]
+                            rel_paths[idx] = v
+                        except Exception:
+                            continue
+                    elif k.startswith('relative_path_'):
+                        try:
+                            idx = k.split('relative_path_')[1]
+                            rel_paths[idx] = v
+                        except Exception:
+                            continue
             try:
                 import logging
                 log = logging.getLogger('learning_logs.edit_entry')
@@ -617,7 +660,21 @@ def upload_attachments_api(request):
         raise Http404
 
     files = request.FILES.getlist('files')
-    rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
+    rel_paths = {}
+    rp_json = request.POST.get('relative_paths_json')
+    if rp_json:
+        try:
+            parsed = json.loads(rp_json)
+            if isinstance(parsed, list):
+                for i, p in enumerate(parsed):
+                    rel_paths[str(i)] = p
+            elif isinstance(parsed, dict):
+                for k, v in parsed.items():
+                    rel_paths[str(k)] = v
+        except Exception:
+            rel_paths = {}
+    else:
+        rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
     created = _save_attachments_from_request(files, request.user, **kw, relative_paths=rel_paths)
     data = []
     for a in created:
@@ -920,8 +977,22 @@ def add_comment(request, entry_id):
             comment.user = request.user
             comment.name = ''
         files = request.FILES.getlist('comment_attachments')
-        # 支持文件夹上传的相对路径映射：relative_path[<index>] = path
-        rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
+        # 支持文件夹上传的相对路径映射：relative_paths_json (优先) 或 relative_path[<index>] = path
+        rel_paths = {}
+        rp_json = request.POST.get('relative_paths_json')
+        if rp_json:
+            try:
+                parsed = json.loads(rp_json)
+                if isinstance(parsed, list):
+                    for i, p in enumerate(parsed):
+                        rel_paths[str(i)] = p
+                elif isinstance(parsed, dict):
+                    for k, v in parsed.items():
+                        rel_paths[str(k)] = v
+            except Exception:
+                rel_paths = {}
+        else:
+            rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
         # 若文本与附件皆为空，则忽略此次提交
         if (not (comment.text or '').strip()) and not files:
             try:

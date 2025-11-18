@@ -31,17 +31,20 @@
           const fileInputEl = document.getElementById('id_attachments');
           if(!formEl) return;
           formEl.addEventListener('submit', function(e){
-            // Remove previous relative_path inputs
+            // 移除此前可能存在的相对路径字段（兼容旧版）
             Array.from(formEl.querySelectorAll('input[name^="relative_path["]')).forEach(n=>n.remove());
+            Array.from(formEl.querySelectorAll('input[name="relative_paths_json"]')).forEach(n=>n.remove());
             if(!fileInputEl || !fileInputEl.files || fileInputEl.files.length === 0) return;
-            Array.from(fileInputEl.files).forEach(function(f, idx){
+            const paths = Array.from(fileInputEl.files).map(function(f){
               let rel = '';
               try { rel = f.webkitRelativePath || f.relativePath || f.name; } catch(err){ rel = f.name; }
-              rel = (rel || '').replace(/\\/g, '/').replace(/^\/+/, '');
-              const inp = document.createElement('input');
-              inp.type = 'hidden'; inp.name = 'relative_path[' + idx + ']'; inp.value = rel;
-              formEl.appendChild(inp);
+              return (rel || '').replace(/\\/g, '/').replace(/^\/+/, '');
             });
+            const jsonInp = document.createElement('input');
+            jsonInp.type = 'hidden';
+            jsonInp.name = 'relative_paths_json';
+            jsonInp.value = JSON.stringify(paths);
+            formEl.appendChild(jsonInp);
           });
         })();
         </script>
