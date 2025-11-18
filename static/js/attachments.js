@@ -8,7 +8,6 @@
 (function(){
   // Optional drag & drop enhancement
   let dragCounter = 0;
-  function log(...a){ if(window.DEBUG_UPLOAD) console.log('[ATT]', ...a); }
   function getCookie(name){
     const m = document.cookie.match('(^|;)\\s*'+name+'\\s*=\\s*([^;]+)');
     return m ? decodeURIComponent(m.pop()) : ''; }
@@ -52,12 +51,11 @@
     item.appendChild(icon);
 
   const link = document.createElement('a');
-  // 文件名链接使用原始文件 URL，便于图片/文本类直接预览；下载按钮仍走专用端点
-  link.href = a.url;
-    link.target = '_blank';
-    link.className = 'flex-grow-1 text-decoration-none text-body';
-    link.textContent = a.name;
-    item.appendChild(link);
+  // 文件名链接使用预览路由，与服务端渲染保持一致（点击进入预览页）
+  link.href = '/attachments/preview/' + a.id + '/';
+  link.className = 'flex-grow-1 text-decoration-none text-body attachment-link';
+  link.textContent = a.name;
+  item.appendChild(link);
 
   const sizeSpan = document.createElement('span');
   sizeSpan.className = 'text-muted small me-3';
@@ -66,35 +64,21 @@
   // 下载按钮（outline 绿色）
   // 根据上下文 decide 按钮：如果允许编辑（即处于新建/编辑上下文），显示删除按钮；否则显示下载按钮
   const canEdit = opts && opts.canEdit;
-  if (canEdit) {
-    const del = document.createElement('button');
-    del.type = 'button';
-    del.className = 'btn btn-sm btn-outline-danger me-2 ll-attach-del';
-    del.textContent = '删除';
-    del.dataset.id = a.id;
-    item.appendChild(del);
-  } else {
-    const dl = document.createElement('a');
-    dl.className='btn btn-sm btn-outline-success me-2';
-    dl.textContent='下载';
-    dl.href='/attachments/download/'+a.id+'/';
-    item.appendChild(dl);
-  }
-
-    // Delete button needs owner info, which we don't have here.
-    // It will be added if the current user is the owner.
-    // For now, we can add a placeholder or handle it differently.
-    // Let's assume the delete button is only for owners and added dynamically
-    // based on user permissions known at render time.
-    // The button is now part of the initial HTML, so we just need to handle its click.
-    // When adding dynamically, we need to know if the current user is the owner.
-    // Let's simplify: the delete button will be handled by the global click handler
-    // if it exists in the initial HTML. For dynamically added items, we'll omit it
-    // as we can't securely determine ownership on the client side without more info.
-    // A better approach would be to have the server response for upload include owner info
-    // and compare with a global JS variable `currentUserId`.
-    // For now, let's just build the item without the delete button.
-    // The user can refresh to see the delete button if they are the owner.
+    if (canEdit) {
+      const del = document.createElement('button');
+      del.type = 'button';
+      // 保持与服务端删除按钮类名兼容
+      del.className = 'btn btn-sm btn-outline-danger me-2 ll-attach-del delete-attachment';
+      del.textContent = '删除';
+      del.dataset.id = a.id;
+      item.appendChild(del);
+    } else {
+      const dl = document.createElement('a');
+      dl.className='btn btn-sm btn-outline-success me-2';
+      dl.textContent='下载';
+      dl.href='/attachments/download/'+a.id+'/';
+      item.appendChild(dl);
+    }
 
     return item;
   }
@@ -270,7 +254,8 @@
     if(!inputs || !inputs.length) return;
     inputs.forEach((input)=>{
       // Skip inputs explicitly marked to avoid async handling (used for form-submit attachments)
-      if (input.dataset && input.dataset.noAsync) return;
+      // Use hasAttribute to detect presence (dataset.noAsync may be an empty string and thus falsy).
+      if (input.hasAttribute && input.hasAttribute('data-no-async')) return;
       input.addEventListener('change', (e)=>{
         const files = e.target.files;
         if(files && files.length){

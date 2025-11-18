@@ -46,12 +46,12 @@
                     <input class="d-none" type="file" name="attachments" multiple webkitdirectory directory data-no-async>
                   </label>
                 </div>
-                <div class="form-text mt-1">支持选择多个文件或选择一个/多个文件夹（受浏览器支持）。</div>
+                <div class="form-text mt-1"></div>
               </div>
             {% endif %}
           </div>
         </div>
-        {# 附件可见性继承所属日记设置，此处无需单独选择 #}
+        
         <div class="d-flex justify-content-between mt-3">
            <a href="{% url 'learning_logs:topic_by_user' topic.owner.username topic.text %}" class="btn btn-outline-primary">取消</a>
           <button type="submit" id="saveBtn" class="btn btn-primary">保存更改</button>
@@ -117,5 +117,5 @@
       caret_down: "{% static 'img/icons/caret-down.svg' %}",
     };
   </script>
-  {# 只读展示不加载交互脚本 #}
+  
 {% endblock %}

@@ -29,7 +29,7 @@
 
 {% block content %}
 
-  {# 日记本附件（统一 GitHub 风格 + 异步上传） #}
+  
   <div class="card mb-3">
     <div class="card-body">
       <h6 class="mb-2">日记本附件</h6>
@@ -55,7 +55,6 @@
 
   {% for entry in entries %}
     <div class="card mb-3">
-      <!-- Card header with timestamp and edit link -->
       <h4 class="card-header d-flex justify-content-between align-items-center">
         <span class="entry-header">
           {% if entry.title %}
@@ -77,11 +76,11 @@
           {% endif %}
         </span>
       </h4>
-      <!-- Card body with entry text -->
+      
       <div class="card-body">
         {{ entry.text|linebreaks }}
 
-        {# 附件：紧随正文显示 #}
+        
         {% with attachments=entry.attachment_set.all attachment_tree=entry.attachment_tree %}
           <hr>
           <h6 class="mb-2">附件</h6>
@@ -130,7 +129,7 @@
                                         {% endif %}
                                       </div>
 
-                      {# 折叠的直接回复列表（仅顶级评论的直接回复显示为折叠列表） #}
+                      
                       {% if c.replies.exists %}
                         <div id="replies-{{ c.id }}" class="replies-container mt-2 ms-3">
                           <div class="list-group list-group-flush">
@@ -148,7 +147,7 @@
                                     <button type="button" class="btn btn-sm btn-outline-danger delete-comment" data-id="{{ r.id }}">删除</button>
                                   </div>
                                 {% endif %}
-                                {# 如果该回复还有更深层次的回复，将以 @username 行内形式显示 #}
+                                
                                 {% if r.replies.exists %}
                                   <div class="small text-muted mt-1">
                                     {% for rr in r.replies.all %}
@@ -167,8 +166,8 @@
                         </div>
                       {% endif %}
 
-                      {# 回复表单（隐藏，点击 回复 按钮显示） #}
-                                      {# 回复在单独页面进行，移除内联回复表单 #}
+                      
+                                      
                     </div>
                   {% endfor %}
                 </div>
@@ -177,14 +176,14 @@
               {% endif %}
             {% endwith %}
 
-            {# 统一使用单独页面发表评论 #}
+            
             <div class="text-end mt-2">
               <a class="btn btn-outline-primary btn-sm" href="{% url 'learning_logs:add_comment' entry.id %}">发表评论</a>
             </div>
           </div>
         {% endif %}
 
-        {# 移除独立上传入口，附件仅在新建/编辑/评论时上传 #}
+        
 
       </div>
     </div>

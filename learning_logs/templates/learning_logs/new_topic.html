@@ -21,9 +21,9 @@
         {% csrf_token %}
         {% bootstrap_form form show_labels=True %}
         <div class="mb-3">
-          <label class="form-label">附件（可选，可多选，支持文件夹）</label>
+          <label class="form-label">附件（可选）</label>
           <input id="id_attachments" class="form-control" type="file" name="attachments" multiple webkitdirectory directory>
-          <div class="form-text">支持批量选择文件或选择文件夹（受浏览器支持）。</div>
+          <div class="form-text"></div>
         </div>
         <script>
         (function(){
@@ -48,7 +48,7 @@
           });
         })();
         </script>
-        {# 附件可见性继承日记本设置，此处无需单独选择 #}
+        
         <div class="d-flex justify-content-between mt-3">
           <a href="{% url 'learning_logs:topics' %}" class="btn btn-outline-primary">取消</a>
           <button type="submit" class="btn btn-primary">创建日记本</button>

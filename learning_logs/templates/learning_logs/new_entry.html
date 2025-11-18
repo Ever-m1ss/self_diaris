@@ -27,29 +27,28 @@
         {% endif %}
         {% bootstrap_form form show_labels=True %}
         <div class="mb-3">
-          <h6 class="mb-2">日记本附件（只读）</h6>
-          <div class="ll-attachments" data-parent-type="topic" data-parent-id="{{ topic.id }}">
+          <h6 class="mb-2">已有附件</h6>
+          <div class="ll-attachments" data-parent-type="topic" data-parent-id="{{ topic.id }}" data-can-edit="1">
             <div class="list-group list-group-flush ll-attach-list">
               {% include 'learning_logs/_attachment_tree.html' with tree=topic.attachment_tree parent_owner=topic.owner base='' allow_modify=False allow_download=False %}
             </div>
+            <div class="mt-2">
+              <h6 class="mb-2">上传附件</h6>
+              <div class="mt-2 d-flex gap-2 flex-wrap">
+                <label class="btn btn-outline-primary btn-sm mb-0">
+                  选择文件
+                  <input class="d-none" type="file" name="attachments" multiple data-no-async>
+                </label>
+                <label class="btn btn-outline-primary btn-sm mb-0">
+                  选择文件夹
+                  <input class="d-none" type="file" name="attachments" multiple webkitdirectory directory data-no-async>
+                </label>
+              </div>
+                <div class="form-text mt-1"></div>
+            </div>
           </div>
         </div>
-
-        <div class="mb-3">
-          <h6 class="mb-2">上传附件</h6>
-          <div class="mt-2 d-flex gap-2 flex-wrap">
-            <label class="btn btn-outline-primary btn-sm mb-0">
-              选择文件
-              <input class="d-none" type="file" name="attachments" multiple data-no-async>
-            </label>
-            <label class="btn btn-outline-primary btn-sm mb-0">
-              选择文件夹
-              <input class="d-none" type="file" name="attachments" multiple webkitdirectory directory data-no-async>
-            </label>
-          </div>
-          <div class="form-text mt-1">支持选择多个文件或选择一个/多个文件夹（受浏览器支持）。</div>
-        </div>
-        {# 附件可见性继承所属日记设置，此处无需单独选择 #}
+        
         <div class="d-flex justify-content-between mt-3">
          <a href="{% url 'learning_logs:topic_by_user' topic.owner.username topic.text %}" class="btn btn-outline-primary">取消</a>
           <button type='submit' id="submitBtn" class="btn btn-primary" disabled>发表日记</button>
@@ -142,5 +141,5 @@
       caret_down: "{% static 'img/icons/caret-down.svg' %}",
     };
   </script>
-  {# 新建页允许上传，保留只读展示日记本附件的列表 #}
+  
 {% endblock %}

@@ -40,15 +40,15 @@
   {% else %}
     style="--ll-bg-image: url('{{ background_image_url }}');"
   {% endif %}>
-  {# 全局背景插槽：放在 body 顶层，确保覆盖整个视口且不受容器影响 #}
+  
   {% block background %}{% endblock %}
   <nav class="navbar navbar-light">
     <div class="container d-flex align-items-center justify-content-between flex-wrap">
       <div class="d-flex align-items-center gap-3 flex-wrap">
-        {# 页面级返回按钮（由子模板覆盖），放在导航左侧，和发现/我的 同一行 #}
+        
         <div class="me-2 d-flex align-items-center">
           {% block page_back_button %}
-            {# 默认返回按钮：若子模板未覆盖，则在非首页显示一个基于 history.back() 的回退按钮 #}
+            
             {% if request.resolver_match and request.resolver_match.url_name != 'index' %}
               <a class="back-btn" href="javascript:history.back();" aria-label="返回">
                 <img src="{% static 'img/icons/arrow-left.svg' %}" alt="返回" />
@@ -93,9 +93,9 @@
           </form>
         {% endif %}
       </div>
-    </div> <!-- Closes navbar's container -->
+    </div>
 
-  </nav> <!-- End of navbar -->
+  </nav>
   <main class="container">
     <div class="pb-2 mb-2 border-bottom">
       {% block page_header %}{% endblock page_header %}
@@ -106,7 +106,7 @@
 
   </main>
   <script src="{% static 'js/background.js' %}" defer></script>
-  {# Global icon map for attachments and include attachments script globally so discovery/index can use folder expand etc. #}
+  
   <script>
     window.LL_ICON_URLS = {
       folder: "{% static 'img/icons/folder.svg' %}",

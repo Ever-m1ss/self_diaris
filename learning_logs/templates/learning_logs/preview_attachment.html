@@ -12,7 +12,7 @@
 {% endblock page_header %}
 
 {% block content %}
-  {# 返回键已统一放在导航栏左侧，删除页面内的额外返回链接 #}
+  
   <div class="card">
     <div class="card-body">
       {% if preview_type == 'text' %}
@@ -46,7 +46,7 @@
 {% endblock content %}
 
 {% block extra_head %}
-  {# 加载 highlight.js（只在预览页加载），使用 CDN 的 GitHub 主题并启用自动高亮 #}
+  
   <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/styles/github.min.css">
   <script src="https://cdnjs.cloudflare.com/ajax/libs/highlight.js/11.8.0/highlight.min.js" defer></script>
   <script defer>
