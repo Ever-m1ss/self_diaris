@@ -64,7 +64,12 @@
 
         function hasFilesInForm() {
           const fileInputs = Array.from(document.querySelectorAll('form input[type=file][name="attachments"]'));
-          return fileInputs.some(fi => fi && fi.files && fi.files.length > 0);
+          const hasFiles = fileInputs.some(fi => fi && fi.files && fi.files.length > 0);
+          // Consider an async upload session as presence of files for the purpose of enabling submit
+          const wrapper = document.querySelector('.ll-attachments[data-parent-type="topic"]');
+          const hasUploadSession = !!(wrapper && wrapper.dataset && wrapper.dataset.uploadSession);
+          const hiddenSession = !!document.querySelector('input[name="upload_session"]');
+          return hasFiles || hasUploadSession || hiddenSession;
         }
 
         function update(){
@@ -82,7 +87,10 @@
           const wrapper = document.querySelector('.ll-attachments[data-parent-type="topic"]');
           if(wrapper && !wrapper.dataset.uploadSession){
             wrapper.dataset.uploadSession = 's'+Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+            try{ update(); }catch(e){}
           }
+          // Listen for async upload code setting dataset.uploadSession and notify to update submit button
+          document.addEventListener('ll:upload_session:set', function(ev){ try{ update(); }catch(e){} });
         }catch(e){console.warn('upload_session init failed', e);} 
 
         // On submit, collect relative paths and ensure upload_session is posted (same behavior as edit_entry)
@@ -95,7 +103,16 @@
             const fileInputs = Array.from(formEl.querySelectorAll('input[type=file][name="attachments"]'));
             let allFiles = [];
             fileInputs.forEach(function(inp){ if(inp.files && inp.files.length){ allFiles = allFiles.concat(Array.from(inp.files)); }});
-            if(allFiles.length === 0) return;
+            // If there are no file inputs but an async upload_session exists on the topic wrapper,
+            // ensure the upload_session hidden input is sent so server can reassign topic attachments.
+            const wrapper = formEl.querySelector('.ll-attachments[data-parent-type="topic"]');
+            const wrapperSession = wrapper?.dataset?.uploadSession;
+            if(allFiles.length === 0){
+              if(wrapperSession && !formEl.querySelector('input[name="upload_session"]')){
+                const upInp = document.createElement('input'); upInp.type='hidden'; upInp.name='upload_session'; upInp.value = wrapperSession; formEl.appendChild(upInp);
+              }
+              return; // allow default submit to proceed
+            }
             // If files originate from staged input and exceed client-side threshold, auto-async upload them first
             const AUTO_ASYNC_THRESHOLD_LOCAL = 50;
             const noAsyncInputs = Array.from(formEl.querySelectorAll('input[type=file][name="attachments"][data-no-async]'));

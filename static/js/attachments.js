@@ -84,7 +84,7 @@
   }
 
   // Limit per-folder files (allowed max) and chunk size for each async request
-  const MAX_FOLDER_UPLOAD_FILES = 5000;
+  const MAX_FOLDER_UPLOAD_FILES = 10000;
   const UPLOAD_CHUNK_SIZE = 50; // max files per request
   const UPLOAD_CHUNK_MAX_BYTES = 2 * 1024 * 1024; // 2MB per request
 
@@ -135,6 +135,13 @@
   }
 
   async function uploadBatch(wrapper, files){
+    // Ensure we have an upload_session id on the wrapper so server can associate async uploads
+    try {
+      if (!wrapper.dataset.uploadSession) {
+        wrapper.dataset.uploadSession = 's'+Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+        try { document.dispatchEvent(new CustomEvent('ll:upload_session:set', { detail: { wrapper: wrapper } })); } catch (e) { }
+      }
+    } catch (e) { /* ignore */ }
     // If wrapper contains an input marked data-no-async or wrapper itself is marked, treat files as staged
     if (wrapper.querySelector('input[type=file][data-no-async]') || wrapper.hasAttribute('data-no-async')){
       try {
@@ -193,46 +200,25 @@
   const listContainer = wrapper.querySelector('.ll-attach-list') || wrapper;
 
     // For single-chunk path, reuse sendChunk to centralize behavior
-    const data = await sendChunk(wrapper, files);
-    try{
-      console.debug('[attachments] uploadBatch sending', files.length, paths.map(p=>p.path));
-      if(!csrftoken){
-        alert('会话或 CSRF token 未找到，请先登录或刷新页面后重试。');
-        return;
-      }
-      const resp = await fetch('/attachments/upload/', {
-        method:'POST',
-        credentials: 'same-origin',
-        headers:{'X-CSRFToken': csrftoken,'X-Requested-With':'XMLHttpRequest','Accept':'application/json'},
-        body: fd
-      });
-      if(!resp.ok){
-          const t = await resp.text();
-          throw new Error(t || resp.status);
-      }
-      const data = await resp.json();
-      if(!data.ok) throw new Error('上传失败');
-      // 简化处理：将新文件追加到容器（树状视图下一次刷新会重建层级）
-      // 动态将文件插入对应的文件夹层级（无需刷新）
-      data.files.forEach(f=>{
+    try {
+      const data = await sendChunk(wrapper, files);
+      const listContainer = wrapper.querySelector('.ll-attach-list') || wrapper;
+      data.files.forEach(f => {
         const canEdit = wrapper.dataset.canEdit && wrapper.dataset.canEdit !== '0' ? true : false;
-        const newItem = buildItem(f, {canEdit: canEdit});
+        const newItem = buildItem(f, { canEdit: canEdit });
         let targetContainer = listContainer;
         if (f.relative_path && f.relative_path.includes('/')) {
-          // ensureFolderPath 期望传入包含文件名的完整路径，它内部会去掉最后一段作为文件夹链
+          // ensureFolderPath expects a full path including filename; it will strip the filename
           targetContainer = ensureFolderPath(listContainer, f.relative_path) || listContainer;
         }
-        // 如果目标是顶层并存在输入容器，则插入到输入容器之前；否则直接 append
         const inputContainer = (targetContainer === listContainer) ? listContainer.querySelector('.mt-2') : null;
-        if (inputContainer) {
-          targetContainer.insertBefore(newItem, inputContainer);
-        } else {
-          targetContainer.appendChild(newItem);
-        }
+        if (inputContainer) targetContainer.insertBefore(newItem, inputContainer); else targetContainer.appendChild(newItem);
       });
-    }catch(err){
+      return;
+    } catch (err) {
       console.error('Upload error', err);
-      alert('上传失败: '+ err.message);
+      alert('上传失败: ' + (err.message || err));
+      return;
     }
   }
 

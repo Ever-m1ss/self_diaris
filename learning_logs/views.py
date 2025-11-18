@@ -18,7 +18,7 @@ import json
 from django.conf import settings
 
 # Max files per folder allowed in a single upload (server-side enforcement)
-MAX_FOLDER_UPLOAD_FILES = getattr(settings, 'LL_MAX_FOLDER_UPLOAD_FILES', 5000)
+MAX_FOLDER_UPLOAD_FILES = getattr(settings, 'LL_MAX_FOLDER_UPLOAD_FILES', 10000)
 
 
 def _parse_relative_paths(post_data):
@@ -385,7 +385,12 @@ def new_entry(request, topic_id):
         try:
             import logging
             log = logging.getLogger('learning_logs.new_entry')
-            log.debug('new_entry files=%s names=%s rel_index_map=%s rel_meta_map=%s', len(files) if files is not None else 0, [getattr(f, 'name', None) for f in files], rel_index_map, rel_meta_map)
+            session_key_debug = request.POST.get('upload_session')
+            content_length = request.META.get('CONTENT_LENGTH')
+            log.debug('new_entry BEGIN parse files=%s names=%s rel_index_map=%s rel_meta_map=%s upload_session=%s content_length=%s referer=%s',
+                      len(files) if files is not None else 0,
+                      [getattr(f, 'name', None) for f in files],
+                      rel_index_map, rel_meta_map, session_key_debug, content_length, request.META.get('HTTP_REFERER'))
         except Exception:
             pass
         if form.is_valid():
