@@ -556,7 +556,17 @@ def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comm
         except Exception:
             return ''
     for idx, f in enumerate(files):
-        if not isinstance(f, UploadedFile):
+        try:
+            if not isinstance(f, UploadedFile):
+                continue
+        except Exception:
+            # In rare cases UploadedFile check can fail; skip this file but log
+            try:
+                import logging
+                log = logging.getLogger('learning_logs.save_attach')
+                log.exception('Skipped non-uploaded file at index=%s repr=%r', idx, getattr(f, 'name', None))
+            except Exception:
+                pass
             continue
         derived_public = False
         if entry is not None:
@@ -566,7 +576,7 @@ def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comm
         elif comment is not None:
             derived_public = True
         att = Attachment(owner=owner, topic=topic, entry=entry, comment=comment, file=f, is_public=derived_public)
-        att.original_name = f.name
+        att.original_name = getattr(f, 'name', '')
         # Attempt to find a relative path for this file in several ways
         rp_raw = None
         if rel_map.get(idx):
@@ -588,7 +598,17 @@ def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comm
                 att.relative_path = _rp
         if upload_session:
             att.upload_session = upload_session
-        att.save()
+        try:
+            att.save()
+        except Exception:
+            # If saving a single attachment fails (e.g. storage error, name issue), log and continue with others
+            try:
+                import logging
+                log = logging.getLogger('learning_logs.save_attach')
+                log.exception('Failed to save attachment for file index=%s name=%s owner=%s topic=%s entry=%s', idx, getattr(att, 'original_name', None), getattr(owner, 'id', None), getattr(topic, 'id', None) if topic else None, getattr(entry, 'id', None) if entry else None)
+            except Exception:
+                pass
+            continue
         try:
             import logging
             log = logging.getLogger('learning_logs.save_attach')
@@ -723,10 +743,26 @@ def upload_attachments_api(request):
         log = logging.getLogger('learning_logs.upload')
         log.exception('Failed to parse uploaded files: %s', e)
         return JsonResponse({'ok': False, 'error': 'Failed to parse uploaded files. Request size may be too large or form is invalid.'}, status=400)
+    # Log basic request info to help diagnose folder-specific failures
+    try:
+        import logging
+        upl = logging.getLogger('learning_logs.upload')
+        upl.debug('upload_attachments_api POST keys=%s FILES=%s', list(request.POST.keys()), [getattr(f,'name',None) for f in files])
+    except Exception:
+        pass
+
     rel_paths = {}
     rp_json = request.POST.get('relative_paths_json')
     if rp_json:
         try:
+            # Defensive: if client sent extremely large JSON, limit its length
+            if isinstance(rp_json, str) and len(rp_json) > 20000:
+                try:
+                    import logging
+                    logging.getLogger('learning_logs.upload').warning('relative_paths_json unusually large, truncating length=%s', len(rp_json))
+                except Exception:
+                    pass
+                rp_json = rp_json[:20000]
             parsed = json.loads(rp_json)
             if isinstance(parsed, list):
                 for i, p in enumerate(parsed):
@@ -735,6 +771,11 @@ def upload_attachments_api(request):
                 for k, v in parsed.items():
                     rel_paths[str(k)] = v
         except Exception:
+            try:
+                import logging
+                logging.getLogger('learning_logs.upload').exception('Failed to parse relative_paths_json')
+            except Exception:
+                pass
             rel_paths = {}
     else:
         rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}

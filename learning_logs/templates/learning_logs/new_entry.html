@@ -56,74 +56,53 @@
       </form>
       <script>
       (function(){
+        // Enable submit when title/text or files are present; generate upload_session token.
         const ta = document.getElementById('id_text');
         const title = document.getElementById('id_title');
         const btn = document.getElementById('submitBtn');
         if(!ta || !btn) return;
+
+        function hasFilesInForm() {
+          const fileInputs = Array.from(document.querySelectorAll('form input[type=file][name="attachments"]'));
+          return fileInputs.some(fi => fi && fi.files && fi.files.length > 0);
+        }
+
         function update(){
           const hasText = (ta.value || '').trim().length > 0;
           const hasTitle = title && (title.value || '').trim().length > 0;
-          // 检查表单内是否存在选中的文件（支持多个 attachments inputs）
-          const hasFiles = hasFilesInForm();
-          // 允许仅填写标题或正文或仅上传附件即可提交
-          btn.disabled = !(hasText || hasTitle || hasFiles);
+          btn.disabled = !(hasText || hasTitle || hasFilesInForm());
         }
         ta.addEventListener('input', update);
         if(title) title.addEventListener('input', update);
-      <script>
-        // Generate a short upload_session token for async attachments on this new_entry page
-        (function(){
-          const wrapper = document.querySelector('.ll-attachments[data-parent-type="topic"]');
-          if(!wrapper) return;
-          if (!wrapper.dataset.uploadSession){
-            const token = 's'+Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
-            wrapper.dataset.uploadSession = token;
-          }
-        })();
-      </script>
-        // 检查表单内所有 name="attachments" 的 file inputs
-        function hasFilesInForm() {
-          const fileInputs = Array.from(document.querySelectorAll('form input[type=file][name="attachments"]'));
-          for (let i = 0; i < fileInputs.length; i++) {
-            const fi = fileInputs[i];
-            if (fi && fi.files && fi.files.length > 0) return true;
-          }
-          return false;
-        }
-        // 为所有 file inputs 绑定 change 事件以触发按钮状态更新
-        Array.from(document.querySelectorAll('form input[type=file][name="attachments"]')).forEach(function(fi){ fi.addEventListener('change', update); });
+        Array.from(document.querySelectorAll('form input[type=file][name="attachments"]')).forEach(fi=>fi.addEventListener('change', update));
         update();
 
-        // Generate upload_session and create hidden inputs relative_path[<index>] for each file collected from all attachments inputs
-        const formEl = document.querySelector('form');
-        if(formEl) {
-            formEl.addEventListener('submit', function(e){
-            // 移除旧字段，兼容之前的实现
-            Array.from(formEl.querySelectorAll('input[name^="relative_path["]')).forEach(n => n.remove());
-            Array.from(formEl.querySelectorAll('input[name="relative_paths_json"]')).forEach(n => n.remove());
+        // Ensure the page has an upload_session token so async uploads can be reassigned to the new entry.
+        try{
+          const wrapper = document.querySelector('.ll-attachments[data-parent-type="topic"]');
+          if(wrapper && !wrapper.dataset.uploadSession){
+            wrapper.dataset.uploadSession = 's'+Date.now().toString(36) + Math.random().toString(36).slice(2,8);
+          }
+        }catch(e){console.warn('upload_session init failed', e);} 
 
-            // Collect files from all inputs named attachments inside this form
+        // On submit, collect relative paths and ensure upload_session is posted (same behavior as edit_entry)
+        const formEl = document.querySelector('form');
+        if(formEl){
+          formEl.addEventListener('submit', function(e){
+            Array.from(formEl.querySelectorAll('input[name^="relative_path["]')).forEach(n=>n.remove());
+            Array.from(formEl.querySelectorAll('input[name="relative_paths_json"]')).forEach(n=>n.remove());
+
             const fileInputs = Array.from(formEl.querySelectorAll('input[type=file][name="attachments"]'));
             let allFiles = [];
-            fileInputs.forEach(function(inp){
-              if(inp.files && inp.files.length) {
-                allFiles = allFiles.concat(Array.from(inp.files));
-              }
-            });
+            fileInputs.forEach(function(inp){ if(inp.files && inp.files.length){ allFiles = allFiles.concat(Array.from(inp.files)); }});
             if(allFiles.length === 0) return;
             const paths = allFiles.map(function(f){
               let rel = '';
-              try { rel = f.webkitRelativePath || f.relativePath || f.name; } catch(err){ rel = f.name; }
-              return (rel || '').replace(/\\/g, '/').replace(/^\/+/, '');
+              try{ rel = f.webkitRelativePath || f.relativePath || f.name; } catch(err){ rel = f.name; }
+              return (rel || '').replace(/\\/g,'/').replace(/^\/+/,'');
             });
-            const jsonInp = document.createElement('input');
-            jsonInp.type = 'hidden'; jsonInp.name = 'relative_paths_json'; jsonInp.value = JSON.stringify(paths);
-            formEl.appendChild(jsonInp);
-            // Also add per-file relative_path[index] hidden inputs as fallback
-            paths.forEach(function(p, idx){
-              const h = document.createElement('input'); h.type='hidden'; h.name=`relative_path[${idx}]`; h.value=p; formEl.appendChild(h);
-            });
-            // Ensure upload_session is present in POST for reassignment if necessary
+            const jsonInp = document.createElement('input'); jsonInp.type='hidden'; jsonInp.name='relative_paths_json'; jsonInp.value=JSON.stringify(paths); formEl.appendChild(jsonInp);
+            paths.forEach(function(p, idx){ const h = document.createElement('input'); h.type='hidden'; h.name=`relative_path[${idx}]`; h.value=p; formEl.appendChild(h); });
             if(!formEl.querySelector('input[name="upload_session"]')){
               const sid = (formEl.querySelector('.ll-attachments')?.dataset?.uploadSession) || '';
               const upInp = document.createElement('input'); upInp.type='hidden'; upInp.name='upload_session'; upInp.value = sid; formEl.appendChild(upInp);
