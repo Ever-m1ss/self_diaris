@@ -34,15 +34,18 @@ def _parse_relative_paths(post_data):
         try:
             parsed = json.loads(rp_json)
             if isinstance(parsed, list):
-                # If the list contains objects with name/size/path, build meta map
+                # If the list contains objects with name/size/lastModified/path, build meta map
                 if len(parsed) and isinstance(parsed[0], dict):
                     for i, item in enumerate(parsed):
                         if not isinstance(item, dict):
                             continue
                         name = item.get('name')
                         size = item.get('size')
+                        lastm = item.get('lastModified')
                         path = item.get('path') or item.get('rel') or ''
-                        if name and size is not None:
+                        if name and size is not None and lastm is not None:
+                            rel_meta_map[f"{name}|{size}|{lastm}"] = path
+                        elif name and size is not None:
                             rel_meta_map[f"{name}|{size}"] = path
                         rel_index_map[str(i)] = path
                 else:
@@ -220,8 +223,8 @@ def topic(request, topic_name, username=None):
             log.exception('Failed to build topic attachment tree for topic_id=%s name=%s user=%s headers=%s error=%s', getattr(topic,'id',None), topic_name, getattr(request.user,'id',None), { 'UA': request.META.get('HTTP_USER_AGENT'), 'Referer': request.META.get('HTTP_REFERER') }, e)
         except Exception:
             pass
-        # Re-raise to keep behavior (most errs will be handled by Django middleware). Alternatively return 500 with message if wanted.
-        raise
+        # On error building tree, use empty tree to avoid failing whole page
+        topic.attachment_tree = {}
 
     comment_form = CommentForm()
     context = {'topic': topic, 'entries': entries, 'comment_form': comment_form}
@@ -586,30 +589,59 @@ def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comm
         att.original_name = getattr(f, 'name', '')
         # Attempt to find a relative path for this file in several ways
         rp_raw = None
-        if rel_map.get(idx):
-            rp_raw = rel_map[idx]
-        else:
-            # Fallback: try to match by basename within provided relative_paths values
-            # Build once per function call
-            if rel_map:
-                # rel_map may have numeric keys or not; check values
-                for v in rel_map.values():
+        matched_source = None
+        # 1) Index-based mapping (preferred; used for chunked uploads)
+        try:
+            if idx in rel_map:
+                rp_raw = rel_map[idx]
+                matched_source = 'index'
+        except Exception:
+            # rel_map keys might be strings; try string keys as fallback
+            try:
+                if str(idx) in rel_map:
+                    rp_raw = rel_map[str(idx)]
+                    matched_source = 'index'
+            except Exception:
+                pass
+
+        # 2) Basename mapping: if any provided relative path ends with the filename
+        if not rp_raw and rel_map:
+            for v in rel_map.values():
+                try:
                     if not isinstance(v, str):
                         continue
                     if v.endswith('/' + f.name) or v.endswith('\\' + f.name) or v == f.name:
                         rp_raw = v
+                        matched_source = 'basename'
                         break
-                # Try meta_map by name|size key
-                try:
-                    key = f"{getattr(f, 'name', '')}|{getattr(f, 'size', '')}"
-                    if meta_map.get(key):
-                        rp_raw = meta_map.get(key)
                 except Exception:
-                    pass
+                    continue
+
+        # 3) Meta mapping by name|size
+        if not rp_raw and meta_map:
+            try:
+                n = getattr(f, 'name', '')
+                s = getattr(f, 'size', '')
+                for k, v in meta_map.items():
+                    try:
+                        if k.split('|', 2)[0] == n and str(k.split('|', 2)[1]) == str(s):
+                            rp_raw = v
+                            matched_source = 'meta'
+                            break
+                    except Exception:
+                        continue
+            except Exception:
+                pass
+
         if rp_raw:
             _rp = _sanitize_rel_path(rp_raw)
             if _rp:
                 att.relative_path = _rp
+                try:
+                    import logging
+                    logging.getLogger('learning_logs.save_attach').debug('match set relative path for file idx=%s name=%s size=%s source=%s path=%s', idx, getattr(f,'name',None), getattr(f,'size',None), matched_source, _rp)
+                except Exception:
+                    pass
         else:
             try:
                 import logging
@@ -804,6 +836,13 @@ def upload_attachments_api(request):
             pass
         upload_session = request.POST.get('upload_session')
         created = _save_attachments_from_request(files, request.user, **kw, relative_paths=rel_index_map, relative_meta=rel_meta_map, upload_session=upload_session)
+        try:
+            import logging
+            upl = logging.getLogger('learning_logs.upload')
+            details = [(a.id, a.original_name, a.relative_path) for a in created]
+            upl.debug('upload_attachments_api saved attachments: %s', details)
+        except Exception:
+            pass
     except Exception as e:
         import logging
         log = logging.getLogger('learning_logs.upload')

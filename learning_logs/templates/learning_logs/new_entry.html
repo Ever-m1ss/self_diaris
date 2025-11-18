@@ -28,7 +28,7 @@
         {% bootstrap_form form show_labels=True %}
         <div class="mb-3">
           <h6 class="mb-2">已有附件</h6>
-          <div class="ll-attachments" data-parent-type="topic" data-parent-id="{{ topic.id }}" data-can-edit="1" data-no-async="1">
+          <div class="ll-attachments" data-parent-type="topic" data-parent-id="{{ topic.id }}" data-can-edit="1">
             <div class="list-group list-group-flush ll-attach-list">
               {% include 'learning_logs/_attachment_tree.html' with tree=topic.attachment_tree parent_owner=topic.owner base='' allow_modify=False allow_download=False %}
             </div>
@@ -37,11 +37,11 @@
               <div class="mt-2 d-flex gap-2 flex-wrap">
                   <label class="btn btn-outline-primary btn-sm mb-0">
                     选择文件
-                    <input class="d-none" type="file" name="attachments" multiple data-no-async >
+                    <input class="d-none" type="file" name="attachments" multiple>
                   </label>
                   <label class="btn btn-outline-primary btn-sm mb-0">
                     选择文件夹
-                    <input class="d-none" type="file" name="attachments" multiple webkitdirectory directory data-no-async >
+                    <input class="d-none" type="file" name="attachments" multiple webkitdirectory directory>
                   </label>
               </div>
                 <div class="form-text mt-1"></div>

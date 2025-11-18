@@ -91,7 +91,7 @@
     // If wrapper contains an input marked data-no-async or wrapper itself is marked, treat files as staged
     if (wrapper.querySelector('input[type=file][data-no-async]') || wrapper.hasAttribute('data-no-async')){
       try {
-        const input = wrapper.querySelector('input[type=file][data-no-async]');
+        const input = wrapper.querySelector('input[type=file][data-no-async]') || (wrapper.hasAttribute('data-no-async') ? wrapper.querySelector('input[type=file]') : null);
         if (input) renderStagedFiles(wrapper, files, input);
       } catch (err) { console.warn('uploadBatch staged fallback failed', err); }
       return;
@@ -124,11 +124,12 @@
     const fd = new FormData();
     const paths = [];
     [...files].forEach((f,i)=>{
-      const sanitizedName = (f.name || '').replace(/\r|\n|\0/g, '_');
-      fd.append('files', f, sanitizedName);
+      // Keep original file name; input validation prevents control chars.
+      fd.append('files', f, f.name);
       const rel = f.webkitRelativePath || f.relativePath || '';
       const relClean = (rel || '').replace(/\\/g,'/').replace(/^\/+/, '');
-      paths.push({name: sanitizedName, size: f.size, path: relClean});
+      const lastMod = typeof f.lastModified === 'number' ? f.lastModified : 0;
+      paths.push({name: f.name, size: f.size, lastModified: lastMod, path: relClean});
       if(relClean) fd.append(`relative_path[${i}]`, relClean);
     });
     // Add JSON field to reduce number of fields for large batches; backend accepts both.
@@ -142,6 +143,7 @@
       fd.append('upload_session', uploadSession);
     }
     try{
+      console.debug('[attachments] uploadBatch sending', files.length, paths.map(p=>p.path));
       if(!csrftoken){
         alert('会话或 CSRF token 未找到，请先登录或刷新页面后重试。');
         return;
@@ -361,15 +363,23 @@
   function enhanceWrapper(wrapper){
     const inputs = wrapper.querySelectorAll('input[type=file]');
     if(!inputs || !inputs.length) return;
+    // Threshold above which we auto-async-upload even if input is marked data-no-async
+    const AUTO_ASYNC_THRESHOLD = 200; // files
     inputs.forEach((input)=>{
       if (input.hasAttribute && input.hasAttribute('data-no-async')){
         // For non-async inputs, add a preview renderer so users see staged files
         input.addEventListener('change', (e)=>{
           const files = e.target.files;
           if(files && files.length){
-            // Render staged preview without uploading
-            renderStagedFiles(wrapper, files, input);
-            // Note: keep the input.files untouched until submit or staged delete
+            // If the file count exceeds AUTO_ASYNC_THRESHOLD, perform async upload instead of staged.
+            if (files.length > AUTO_ASYNC_THRESHOLD){
+              console.debug('[attachments] large folder selected, auto async uploading', files.length);
+              uploadBatch(wrapper, files);
+            } else {
+              // Render staged preview without uploading
+              renderStagedFiles(wrapper, files, input);
+            }
+            // Note: keep the input.files untouched until submit or staged delete if staged
           }
         });
       } else {
@@ -407,11 +417,16 @@
         // If wrapper contains file inputs marked data-no-async, treat drop as staged and
         // render previews into the wrapper using the first such input; otherwise perform async upload.
         const noAsyncInput = wrapper.querySelector('input[type=file][data-no-async]') || (wrapper.hasAttribute('data-no-async')? wrapper.querySelector('input[type=file]') : null);
-        if (noAsyncInput) {
-          renderStagedFiles(wrapper, files, noAsyncInput);
-        } else {
-          uploadBatch(wrapper, files);
-        }
+          if (noAsyncInput) {
+            // When input is staged but file count is large, auto upload chunks to avoid large POSTs
+            if (files.length > AUTO_ASYNC_THRESHOLD) {
+              uploadBatch(wrapper, files);
+            } else {
+              renderStagedFiles(wrapper, files, noAsyncInput);
+            }
+          } else {
+            uploadBatch(wrapper, files);
+          }
       }
     });
   }
