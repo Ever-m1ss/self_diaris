@@ -633,11 +633,11 @@ def upload_attachments_api(request):
     parent_type = request.POST.get('parent_type')
     parent_id = request.POST.get('parent_id')
     if parent_type not in {'topic', 'entry', 'comment'}:
-        return HttpResponseBadRequest('invalid parent_type')
+        return JsonResponse({'ok': False, 'error': 'invalid parent_type'}, status=400)
     try:
         parent_id_int = int(parent_id)
     except Exception:
-        return HttpResponseBadRequest('invalid parent_id')
+        return JsonResponse({'ok': False, 'error': 'invalid parent_id'}, status=400)
 
     parent_obj = None
     kw = {'topic': None, 'entry': None, 'comment': None}
@@ -651,13 +651,17 @@ def upload_attachments_api(request):
         parent_obj = get_object_or_404(Comment, id=parent_id_int)
         kw['comment'] = parent_obj
 
-    # 权限：必须是作者或可附加的公开对象
-    if parent_type == 'topic' and parent_obj.owner != request.user:
-        raise Http404
-    if parent_type == 'entry' and parent_obj.owner != request.user:
-        raise Http404
-    if parent_type == 'comment' and parent_obj.user != request.user:
-        raise Http404
+    # 权限：必须是作者或符合创建附件的约束（例如公开 topic 允许匿名/其他用户在其下添加日记）
+    if parent_type == 'topic':
+        # 允许 topic 的作者上传，或允许在公开的 topic 下由任意已登录用户上传以便创建条目
+        if not (parent_obj.owner == request.user or (parent_obj.is_public and request.user.is_authenticated)):
+            raise Http404
+    elif parent_type == 'entry':
+        if parent_obj.owner != request.user:
+            raise Http404
+    elif parent_type == 'comment':
+        if parent_obj.user != request.user:
+            raise Http404
 
     files = request.FILES.getlist('files')
     rel_paths = {}

@@ -95,17 +95,24 @@
   const listContainer = wrapper.querySelector('.ll-attach-list') || wrapper;
 
     const fd = new FormData();
+    const paths = [];
     [...files].forEach((f,i)=>{
       fd.append('files', f, f.name);
       const rel = f.webkitRelativePath || f.relativePath || '';
+      paths.push((rel || '').replace(/\\/g,'/').replace(/^\/+/, ''));
       if(rel) fd.append(`relative_path[${i}]`, rel);
     });
+    // Add JSON field to reduce number of fields for large batches; backend accepts both.
+    try{
+      fd.append('relative_paths_json', JSON.stringify(paths));
+    }catch(err){/* ignore */}
     fd.append('parent_type', parentType);
     fd.append('parent_id', parentId);
     try{
       const resp = await fetch('/attachments/upload/', {
         method:'POST',
-        headers:{'X-CSRFToken': csrftoken,'X-Requested-With':'XMLHttpRequest'},
+        credentials: 'same-origin',
+        headers:{'X-CSRFToken': csrftoken,'X-Requested-With':'XMLHttpRequest','Accept':'application/json'},
         body: fd
       });
       if(!resp.ok){
@@ -138,13 +145,74 @@
     }
   }
 
+  // Render staged (not-yet-uploaded) files from inputs that are not async-uploaded
+  function renderStagedFiles(wrapper, files, input){
+    if(!files || !files.length) return;
+    const listContainer = wrapper.querySelector('.ll-attach-list') || wrapper;
+    const canEdit = wrapper.dataset.canEdit && wrapper.dataset.canEdit !== '0';
+    [...files].forEach((f, i)=>{
+      const fake = {
+        id: 'staged-' + Date.now() + '-' + Math.random().toString(36).slice(2, 8),
+        name: f.name,
+        size: f.size,
+        is_image: (/^image\//).test(f.type),
+        is_video: (/^video\//).test(f.type),
+        is_audio: (/^audio\//).test(f.type),
+        is_text: (/^(text|application\/(json|xml|javascript|x-www-form-urlencoded))/).test(f.type),
+        relative_path: (f.webkitRelativePath || f.relativePath || f.name).replace(/\\/g, '/').replace(/^\/+/, ''),
+      };
+      const el = buildItem(fake, {canEdit: canEdit});
+      // For staged entries, disable preview link (no server id yet)
+      const link = el.querySelector('.attachment-link');
+      if(link){ link.removeAttribute('href'); link.classList.add('staged-link'); }
+      el.classList.add('ll-attachment-staged');
+      // Replace delete button text & behavior for staged items (remove from the input FileList)
+      const stagedDel = el.querySelector('.delete-attachment') || el.querySelector('.ll-attach-del');
+      if(stagedDel){
+        stagedDel.textContent = '移除';
+        stagedDel.addEventListener('click', (ev)=>{
+          ev.stopPropagation();
+          try{
+            // Remove the file from the input.files via DataTransfer
+            const dt = new DataTransfer();
+            const curFiles = Array.from(input.files || []);
+            for (let fi of curFiles){
+              if (fi.name === f.name && (fi.size === f.size) && (fi.lastModified === f.lastModified)){
+                // skip this one (remove)
+                continue;
+              }
+              dt.items.add(fi);
+            }
+            input.files = dt.files;
+          }catch(err){
+            console.warn('Unable to update file input after staged delete', err);
+          }
+          // Remove preview element
+          const parent = el.parentElement;
+          if(parent) parent.removeChild(el);
+        }, {once: true});
+      }
+      let targetContainer = listContainer;
+      if (fake.relative_path && fake.relative_path.includes('/')){
+        targetContainer = ensureFolderPath(listContainer, fake.relative_path) || listContainer;
+      }
+      const inputContainer = (targetContainer === listContainer) ? listContainer.querySelector('.mt-2') : null;
+      if (inputContainer) {
+        targetContainer.insertBefore(el, inputContainer);
+      } else {
+        targetContainer.appendChild(el);
+      }
+    });
+  }
+
   async function deleteItem(id, btn){
     if(!confirm('确认删除该附件？')) return;
     btn.disabled = true;
     try {
       const resp = await fetch(`/attachments/delete/${id}/`, {
         method: 'POST',
-        headers: {'X-CSRFToken': csrftoken,'X-Requested-With':'XMLHttpRequest'}
+        credentials: 'same-origin',
+        headers: {'X-CSRFToken': csrftoken,'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}
       });
       if(!resp.ok){
         throw new Error(await resp.text() || resp.status);
@@ -253,16 +321,25 @@
     const inputs = wrapper.querySelectorAll('input[type=file]');
     if(!inputs || !inputs.length) return;
     inputs.forEach((input)=>{
-      // Skip inputs explicitly marked to avoid async handling (used for form-submit attachments)
-      // Use hasAttribute to detect presence (dataset.noAsync may be an empty string and thus falsy).
-      if (input.hasAttribute && input.hasAttribute('data-no-async')) return;
-      input.addEventListener('change', (e)=>{
-        const files = e.target.files;
-        if(files && files.length){
-          uploadBatch(wrapper, files);
-          input.value=''; // reset
-        }
-      });
+      if (input.hasAttribute && input.hasAttribute('data-no-async')){
+        // For non-async inputs, add a preview renderer so users see staged files
+        input.addEventListener('change', (e)=>{
+          const files = e.target.files;
+          if(files && files.length){
+            // Render staged preview without uploading
+            renderStagedFiles(wrapper, files, input);
+            // Note: keep the input.files untouched until submit or staged delete
+          }
+        });
+      } else {
+        input.addEventListener('change', (e)=>{
+          const files = e.target.files;
+          if(files && files.length){
+            uploadBatch(wrapper, files);
+            input.value=''; // reset
+          }
+        });
+      }
     });
     // Drag & drop zone
     wrapper.classList.add('ll-attachments-enhanced');
@@ -286,7 +363,14 @@
       if(!dt) return;
       const files = dt.files;
       if(files && files.length){
-        uploadBatch(wrapper, files);
+        // If wrapper contains file inputs marked data-no-async, treat drop as staged and
+        // render previews into the wrapper using the first such input; otherwise perform async upload.
+        const noAsyncInput = wrapper.querySelector('input[type=file][data-no-async]');
+        if (noAsyncInput) {
+          renderStagedFiles(wrapper, files, noAsyncInput);
+        } else {
+          uploadBatch(wrapper, files);
+        }
       }
     });
   }
@@ -313,7 +397,8 @@
         fd.append('folder_path', folderPath);
         fetch('/attachments/delete_folder/', {
           method:'POST',
-          headers:{'X-CSRFToken': csrftoken,'X-Requested-With':'XMLHttpRequest'},
+          credentials: 'same-origin',
+          headers:{'X-CSRFToken': csrftoken,'X-Requested-With':'XMLHttpRequest','Accept':'application/json'},
           body: fd
         }).then(r=>r.json()).then(res=>{
           if(!res.ok){ alert('删除失败: '+(res.error||'未知错误')); return; }
@@ -354,7 +439,8 @@
       btn.disabled = true;
       fetch(`/comments/${encodeURIComponent(id)}/delete/`, {
         method: 'POST',
-        headers: {'X-CSRFToken': csrftoken, 'X-Requested-With': 'XMLHttpRequest'}
+        credentials: 'same-origin',
+        headers: {'X-CSRFToken': csrftoken, 'X-Requested-With': 'XMLHttpRequest','Accept':'application/json'}
       }).then(async r=>{
         if(!r.ok){ throw new Error(await r.text() || r.status); }
         // 成功：移除评论节点
