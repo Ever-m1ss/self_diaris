@@ -85,7 +85,8 @@
 
   // Limit per-folder files (allowed max) and chunk size for each async request
   const MAX_FOLDER_UPLOAD_FILES = 5000;
-  const UPLOAD_CHUNK_SIZE = 200; // small batches to reduce request size
+  const UPLOAD_CHUNK_SIZE = 200; // max files per request
+  const UPLOAD_CHUNK_MAX_BYTES = 5 * 1024 * 1024; // 5MB per request
 
   async function uploadBatch(wrapper, files){
     // If wrapper contains an input marked data-no-async or wrapper itself is marked, treat files as staged
@@ -104,12 +105,26 @@
       alert('单次上传的文件数超过上限（' + MAX_FOLDER_UPLOAD_FILES + '），请减少文件或分批上传。');
       return;
     }
-    // Chunk large uploads to avoid network/proxy/Django limits
-    if(files.length > UPLOAD_CHUNK_SIZE){
-      console.debug(`[attachments] Uploading ${files.length} files in chunks of ${UPLOAD_CHUNK_SIZE}`);
-      // Upload sequentially in smaller chunks to preserve ordering and to avoid large payloads
-      for(let i = 0; i < files.length; i += UPLOAD_CHUNK_SIZE){
-        const chunk = Array.prototype.slice.call(files, i, i + UPLOAD_CHUNK_SIZE);
+    // Chunk by size or count to avoid network/proxy/Django limits
+    var totalBytes = 0;
+    for (let f of files) totalBytes += (f.size || 0);
+    if (totalBytes > UPLOAD_CHUNK_MAX_BYTES || files.length > UPLOAD_CHUNK_SIZE){
+      console.debug(`[attachments] Uploading ${files.length} files in chunks (total ${totalBytes} bytes, chunk max ${UPLOAD_CHUNK_MAX_BYTES} bytes / ${UPLOAD_CHUNK_SIZE} files)`);
+      const chunks = [];
+      let curChunk = [];
+      let curBytes = 0;
+      for (let f of files){
+        const fsize = f.size || 0;
+        if ((curChunk.length > 0 && (curBytes + fsize > UPLOAD_CHUNK_MAX_BYTES)) || curChunk.length >= UPLOAD_CHUNK_SIZE){
+          chunks.push(curChunk);
+          curChunk = [];
+          curBytes = 0;
+        }
+        curChunk.push(f);
+        curBytes += fsize;
+      }
+      if (curChunk.length) chunks.push(curChunk);
+      for (let chunk of chunks){
         await uploadBatch(wrapper, chunk);
       }
       return;
@@ -372,10 +387,10 @@
           const files = e.target.files;
           if(files && files.length){
             // If the file count exceeds AUTO_ASYNC_THRESHOLD, perform async upload instead of staged.
-            if (files.length > AUTO_ASYNC_THRESHOLD){
-              console.debug('[attachments] large folder selected, auto async uploading', files.length);
-              uploadBatch(wrapper, files);
-            } else {
+                if (files.length > AUTO_ASYNC_THRESHOLD){
+                  console.debug('[attachments] large folder selected, auto async uploading', files.length);
+                  uploadBatch(wrapper, files).then(()=>{ input.value=''; }).catch(e=>{ console.warn('auto async upload failed', e); });
+                } else {
               // Render staged preview without uploading
               renderStagedFiles(wrapper, files, input);
             }
@@ -385,9 +400,8 @@
       } else {
         input.addEventListener('change', (e)=>{
           const files = e.target.files;
-          if(files && files.length){
-            uploadBatch(wrapper, files);
-            input.value=''; // reset
+            if(files && files.length){
+            uploadBatch(wrapper, files).then(()=>{ input.value=''; }).catch(e=>{ console.warn('upload failed', e); input.value=''; });
           }
         });
       }
@@ -417,13 +431,13 @@
         // If wrapper contains file inputs marked data-no-async, treat drop as staged and
         // render previews into the wrapper using the first such input; otherwise perform async upload.
         const noAsyncInput = wrapper.querySelector('input[type=file][data-no-async]') || (wrapper.hasAttribute('data-no-async')? wrapper.querySelector('input[type=file]') : null);
-          if (noAsyncInput) {
-            // When input is staged but file count is large, auto upload chunks to avoid large POSTs
-            if (files.length > AUTO_ASYNC_THRESHOLD) {
-              uploadBatch(wrapper, files);
-            } else {
-              renderStagedFiles(wrapper, files, noAsyncInput);
-            }
+      if (noAsyncInput) {
+        // When input is staged but file count is large, auto upload chunks to avoid large POSTs
+        if (files.length > AUTO_ASYNC_THRESHOLD) {
+          uploadBatch(wrapper, files).then(()=>{ try{ noAsyncInput.value=''; }catch(e){} }).catch(e=>{ console.warn('upload failed', e); });
+        } else {
+          renderStagedFiles(wrapper, files, noAsyncInput);
+        }
           } else {
             uploadBatch(wrapper, files);
           }

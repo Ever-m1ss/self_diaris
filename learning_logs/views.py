@@ -390,8 +390,9 @@ def new_entry(request, topic_id):
             pass
         if form.is_valid():
             text_val = (form.cleaned_data.get('text') or '').strip()
-            # 校验：正文与附件不可同时为空
-            if not text_val and not files:
+            # 校验：正文与附件或 upload_session 不能同时为空（支持异步上传）
+            session_key = request.POST.get('upload_session')
+            if not text_val and not files and not session_key:
                 form.add_error(None, '请填写日记正文或至少上传一个附件。')
             else:
                 new_entry = form.save(commit=False)
@@ -831,7 +832,8 @@ def upload_attachments_api(request):
         try:
             import logging
             upload_log = logging.getLogger('learning_logs.upload')
-            upload_log.debug('upload_attachments_api files=%s names=%s rel_index_map=%s rel_meta_map=%s referer=%s', len(files), [getattr(f, 'name', None) for f in files], rel_index_map, rel_meta_map, request.META.get('HTTP_REFERER'))
+            total_bytes = sum([getattr(f,'size',0) for f in files])
+            upload_log.debug('upload_attachments_api files=%s total_bytes=%s names=%s rel_index_map_keys=%s rel_meta_map_keys_sample=%s referer=%s', len(files), total_bytes, [getattr(f, 'name', None) for f in files], list(rel_index_map.keys()), list(rel_meta_map.keys())[:10], request.META.get('HTTP_REFERER'))
         except Exception:
             pass
         upload_session = request.POST.get('upload_session')
