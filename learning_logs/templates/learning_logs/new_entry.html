@@ -96,47 +96,6 @@
             let allFiles = [];
             fileInputs.forEach(function(inp){ if(inp.files && inp.files.length){ allFiles = allFiles.concat(Array.from(inp.files)); }});
             if(allFiles.length === 0) return;
-            // If upload size is large, perform async upload to topic in batches, then submit without file contents
-            const totalBytes = allFiles.reduce((s,f)=>s+(f.size||0), 0);
-            const ASYNC_THRESHOLD = 50 * 1024 * 1024; // 50MB
-            const MAX_SINGLE_FILE = 450 * 1024 * 1024; // 450MB
-            // Reject if single file too large
-            for (let f of allFiles){ if ((f.size || 0) > MAX_SINGLE_FILE){ alert('单个文件超出允许的大小限制：'+Math.round(f.size/1024/1024)+' MB'); e.preventDefault(); return; } }
-            const wrapper = formEl.querySelector('.ll-attachments');
-            if (totalBytes > ASYNC_THRESHOLD && wrapper){
-              // Prevent default submission until async upload completes
-              e.preventDefault();
-              // Ensure upload_session exists
-              if(!wrapper.dataset.uploadSession){ wrapper.dataset.uploadSession = 's'+Date.now().toString(36) + Math.random().toString(36).slice(2,8); }
-              // Temporarily allow async upload by removing data-no-async
-              const hadAttr = wrapper.hasAttribute('data-no-async');
-              if(hadAttr) wrapper.removeAttribute('data-no-async');
-              // Upload in batches by calling uploadBatch (which splits into chunks internally)
-                  (async ()=>{
-                try{
-                  if(window.LL_UPLOAD && typeof window.LL_UPLOAD.uploadBatch === 'function'){
-                    await window.LL_UPLOAD.uploadBatch(wrapper, allFiles);
-                  } else {
-                    // no global function, fallback to staged upload (submit normally)
-                    alert('未能进行异步上传，请改为在目录内选择文件再上传');
-                    return;
-                  }
-                  // restore attribute
-                  if(hadAttr) wrapper.setAttribute('data-no-async', '1');
-                  // Inject upload_session hidden input and submit form (without re-attaching files)
-                  if(!formEl.querySelector('input[name="upload_session"]')){
-                    const upInp = document.createElement('input'); upInp.type='hidden'; upInp.name='upload_session'; upInp.value = wrapper.dataset.uploadSession; formEl.appendChild(upInp);
-                  }
-                  // Clear file inputs to avoid re-transmitting big payload
-                  Array.from(formEl.querySelectorAll('input[type=file][name="attachments"]')).forEach(inp=>{ inp.value=''; });
-                  formEl.submit();
-                }catch(err){
-                  alert('异步上传失败：'+(err.message||err));
-                  if(hadAttr) wrapper.setAttribute('data-no-async', '1');
-                }
-              })();
-              return;
-            }
               for (let f of allFiles){
                 if(/[\r\n\0]/.test(f.name)){
                   alert('文件名包含非法字符（换行或控制字符），请重命名后重试。');

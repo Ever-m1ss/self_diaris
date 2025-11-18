@@ -15,6 +15,10 @@ from .forms import TopicForm, EntryForm, CommentForm
 from django.db import transaction
 from django.utils import timezone
 import json
+from django.conf import settings
+
+# Max files per folder allowed in a single upload (server-side enforcement)
+MAX_FOLDER_UPLOAD_FILES = getattr(settings, 'LL_MAX_FOLDER_UPLOAD_FILES', 5000)
 
 
 def _parse_relative_paths(post_data):
@@ -316,6 +320,14 @@ def new_topic(request):
             new_topic.save()
             # 处理附件（可选，多文件/文件夹）
             files = request.FILES.getlist('attachments') or request.FILES.getlist('attachments[]') or request.FILES.getlist('files') or request.FILES.getlist('files[]')
+            # Server-side guard for new_topic form: limit per-folder files
+            if files and len(files) > MAX_FOLDER_UPLOAD_FILES:
+                form.add_error(None, f'文件数量超出单个文件夹上限（{MAX_FOLDER_UPLOAD_FILES}）。请分批上传。')
+                files = []
+            # Server-side guard for new_entry form: limit per-folder files
+            if files and len(files) > MAX_FOLDER_UPLOAD_FILES:
+                form.add_error(None, f'文件数量超出单个文件夹上限（{MAX_FOLDER_UPLOAD_FILES}）。请分批上传。')
+                files = []
             # 支持两种前端传参格式：
             # 1) 多个 hidden inputs: relative_path[0]=..., relative_path[1]=... （向后兼容）
             # 2) 单个 hidden JSON 字段: relative_paths_json = JSON array or dict
@@ -747,36 +759,17 @@ def upload_attachments_api(request):
         log = logging.getLogger('learning_logs.upload')
         log.exception('Failed to parse uploaded files: %s', e)
         return JsonResponse({'ok': False, 'error': 'Failed to parse uploaded files. Request size may be too large or form is invalid.'}, status=400)
+    # Server-side guard: do not accept more than MAX_FOLDER_UPLOAD_FILES
+    try:
+        if files and len(files) > MAX_FOLDER_UPLOAD_FILES:
+            return JsonResponse({'ok': False, 'error': f'Too many files in upload (max {MAX_FOLDER_UPLOAD_FILES}).'}, status=400)
+    except Exception:
+        pass
     # Log basic request info to help diagnose folder-specific failures
     try:
         import logging
         upl = logging.getLogger('learning_logs.upload')
         upl.debug('upload_attachments_api POST keys=%s FILES=%s', list(request.POST.keys()), [getattr(f,'name',None) for f in files])
-        # also log headers and content-length and total size of files
-        try:
-            upl.debug('upload_attachments_api: Content-Length=%s Referer=%s', request.META.get('CONTENT_LENGTH'), request.META.get('HTTP_REFERER'))
-            total_size = 0
-            sizes = []
-            for f in files:
-                try:
-                    sz = getattr(f, 'size', None) or 0
-                except Exception:
-                    sz = 0
-                sizes.append(sz)
-                total_size += sz
-            upl.debug('upload_attachments_api: files_count=%s sizes_sample=%s total_size=%s', len(files), sizes[:10], total_size)
-        except Exception:
-            pass
-    except Exception:
-        pass
-    # Validate filenames: control characters (CR/LF/NULL) in filename produce issues in HTTP multipart
-    try:
-        for f in files:
-            name = getattr(f, 'name', '') or ''
-            if '\r' in name or '\n' in name or '\x00' in name:
-                import logging
-                logging.getLogger('learning_logs.upload').warning('upload_attachments_api filename contains illegal control characters: %s', name)
-                return JsonResponse({'ok': False, 'error': 'File name contains illegal characters (CR/LF/NULL); please rename and try again.'}, status=400)
     except Exception:
         pass
 
@@ -800,15 +793,6 @@ def upload_attachments_api(request):
         except Exception:
             pass
         upload_session = request.POST.get('upload_session')
-        # Reject extremely large requests early to avoid Nginx/Proxy refusing them silently
-        try:
-            total_size = sum([getattr(f, 'size', 0) for f in files])
-            MAX_BYTES = 500 * 1024 * 1024  # 500MB limit for single request
-            if total_size > MAX_BYTES:
-                upload_log.warning('upload_attachments_api single request too large total_size=%s', total_size)
-                return JsonResponse({'ok': False, 'error': 'Upload too large, please split into smaller batches.'}, status=413)
-        except Exception:
-            pass
         created = _save_attachments_from_request(files, request.user, **kw, relative_paths=rel_index_map, relative_meta=rel_meta_map, upload_session=upload_session)
     except Exception as e:
         import logging
