@@ -42,7 +42,8 @@ def _parse_relative_paths(post_data):
                         name = item.get('name')
                         size = item.get('size')
                         lastm = item.get('lastModified')
-                        path = item.get('path') or item.get('rel') or ''
+                        # Support either 'path' or 'rel' (legacy) or 'webkitRelativePath' from certain client payloads
+                        path = item.get('path') or item.get('rel') or item.get('webkitRelativePath') or ''
                         if name and size is not None and lastm is not None:
                             rel_meta_map[f"{name}|{size}|{lastm}"] = path
                         elif name and size is not None:
@@ -658,6 +659,13 @@ def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comm
                 try:
                     import logging
                     logging.getLogger('learning_logs.save_attach').debug('match set relative path for file idx=%s name=%s size=%s source=%s path=%s', idx, getattr(f,'name',None), getattr(f,'size',None), matched_source, _rp)
+                except Exception:
+                    pass
+            else:
+                # If rp_raw sanitized to empty string, log for diagnostics
+                try:
+                    import logging
+                    logging.getLogger('learning_logs.save_attach').warning('relative path sanitized to empty for file idx=%s name=%s size=%s original=%s source=%s', idx, getattr(f,'name',None), getattr(f,'size',None), rp_raw, matched_source)
                 except Exception:
                     pass
         else:

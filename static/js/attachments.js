@@ -96,11 +96,13 @@
     const paths = [];
     [...files].forEach((f,i)=>{
       fd.append('files', f, f.name);
-      const rel = f.webkitRelativePath || f.relativePath || '';
+      // Preserve folder structure when available. Fall back to file name to avoid empty paths.
+      const rel = f.webkitRelativePath || f.relativePath || f.name || '';
       const relClean = (rel || '').replace(/\\/g,'/').replace(/^\/+/, '');
       const lastMod = typeof f.lastModified === 'number' ? f.lastModified : 0;
       paths.push({name: f.name, size: f.size, lastModified: lastMod, path: relClean});
-      if(relClean) fd.append(`relative_path[${i}]`, relClean);
+      // Always append a per-file relative_path index field (may be empty string), so server can map by index reliably.
+      fd.append(`relative_path[${i}]`, relClean);
     });
     try{ fd.append('relative_paths_json', JSON.stringify(paths)); }catch(err){}
     fd.append('parent_type', parentType);
@@ -178,6 +180,7 @@
       }
       if (curChunk.length) chunks.push(curChunk);
       for (let chunk of chunks){
+        // sendChunk now ensures relative_path JSON includes path fallback to file name
         const data = await sendChunk(wrapper, chunk);
         // Insert returned items to UI
         const listContainer = wrapper.querySelector('.ll-attach-list') || wrapper;

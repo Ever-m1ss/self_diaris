@@ -46,7 +46,8 @@
                 let rel = '';
                 try { rel = f.webkitRelativePath || f.relativePath || f.name; } catch(err){ rel = f.name; }
                 const relClean = (rel || '').replace(/\\/g, '/').replace(/^\/+/, '');
-                return {name: f.name, size: f.size, path: relClean};
+                const lastm = typeof f.lastModified === 'number' ? f.lastModified : 0;
+                return {name: f.name, size: f.size, lastModified: lastm, path: relClean};
             });
             const jsonInp = document.createElement('input');
             jsonInp.type = 'hidden';
