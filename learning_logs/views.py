@@ -752,6 +752,31 @@ def upload_attachments_api(request):
         import logging
         upl = logging.getLogger('learning_logs.upload')
         upl.debug('upload_attachments_api POST keys=%s FILES=%s', list(request.POST.keys()), [getattr(f,'name',None) for f in files])
+        # also log headers and content-length and total size of files
+        try:
+            upl.debug('upload_attachments_api: Content-Length=%s Referer=%s', request.META.get('CONTENT_LENGTH'), request.META.get('HTTP_REFERER'))
+            total_size = 0
+            sizes = []
+            for f in files:
+                try:
+                    sz = getattr(f, 'size', None) or 0
+                except Exception:
+                    sz = 0
+                sizes.append(sz)
+                total_size += sz
+            upl.debug('upload_attachments_api: files_count=%s sizes_sample=%s total_size=%s', len(files), sizes[:10], total_size)
+        except Exception:
+            pass
+    except Exception:
+        pass
+    # Validate filenames: control characters (CR/LF/NULL) in filename produce issues in HTTP multipart
+    try:
+        for f in files:
+            name = getattr(f, 'name', '') or ''
+            if '\r' in name or '\n' in name or '\x00' in name:
+                import logging
+                logging.getLogger('learning_logs.upload').warning('upload_attachments_api filename contains illegal control characters: %s', name)
+                return JsonResponse({'ok': False, 'error': 'File name contains illegal characters (CR/LF/NULL); please rename and try again.'}, status=400)
     except Exception:
         pass
 
@@ -775,6 +800,15 @@ def upload_attachments_api(request):
         except Exception:
             pass
         upload_session = request.POST.get('upload_session')
+        # Reject extremely large requests early to avoid Nginx/Proxy refusing them silently
+        try:
+            total_size = sum([getattr(f, 'size', 0) for f in files])
+            MAX_BYTES = 500 * 1024 * 1024  # 500MB limit for single request
+            if total_size > MAX_BYTES:
+                upload_log.warning('upload_attachments_api single request too large total_size=%s', total_size)
+                return JsonResponse({'ok': False, 'error': 'Upload too large, please split into smaller batches.'}, status=413)
+        except Exception:
+            pass
         created = _save_attachments_from_request(files, request.user, **kw, relative_paths=rel_index_map, relative_meta=rel_meta_map, upload_session=upload_session)
     except Exception as e:
         import logging

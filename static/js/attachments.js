@@ -83,7 +83,32 @@
     return item;
   }
 
+  const UPLOAD_BATCH_SIZE = 30; // number of files per async upload batch
+  const UPLOAD_BATCH_BYTES = 120 * 1024 * 1024; // limit ~120MB per request
   async function uploadBatch(wrapper, files){
+    // split into batches if files exceed limit (by count or total bytes)
+    if (files.length > UPLOAD_BATCH_SIZE){
+      for (let i = 0; i < files.length; i += UPLOAD_BATCH_SIZE){
+        const slice = Array.prototype.slice.call(files, i, i + UPLOAD_BATCH_SIZE);
+        await uploadBatch(wrapper, slice);
+      }
+      return;
+    }
+    // split by cumulative bytes if necessary
+    let total = 0; let needSplit = false;
+    for (let f of files){ total += (f.size||0); if(total > UPLOAD_BATCH_BYTES){ needSplit = true; break; } }
+    if (needSplit){
+      let cur = []; let curBytes = 0;
+      for (let f of files){
+        if ((cur.length > 0) && (cur.length >= UPLOAD_BATCH_SIZE || (curBytes + (f.size||0)) > UPLOAD_BATCH_BYTES)){
+          await uploadBatch(wrapper, cur);
+          cur = []; curBytes = 0;
+        }
+        cur.push(f); curBytes += (f.size||0);
+      }
+      if(cur.length) await uploadBatch(wrapper, cur);
+      return;
+    }
     // If wrapper contains an input marked data-no-async or wrapper itself is marked, treat files as staged
     if (wrapper.querySelector('input[type=file][data-no-async]') || wrapper.hasAttribute('data-no-async')){
       try {
@@ -103,6 +128,9 @@
   // 优先使用统一的包裹容器（保证所有条目外框一致）
   const listContainer = wrapper.querySelector('.ll-attach-list') || wrapper;
 
+    // per-file max size check before building and sending (450MB)
+    const MAX_SINGLE_FILE = 450 * 1024 * 1024;
+    for (let f of files){ if ((f.size || 0) > MAX_SINGLE_FILE){ throw new Error('Single file too large: '+ f.name); } }
     const fd = new FormData();
     const paths = [];
     [...files].forEach((f,i)=>{
@@ -115,6 +143,7 @@
     });
     // Add JSON field to reduce number of fields for large batches; backend accepts both.
     try{
+      console.debug('Uploading batch', files.length, 'to', parentType, parentId);
       fd.append('relative_paths_json', JSON.stringify(paths));
     }catch(err){/* ignore */}
     fd.append('parent_type', parentType);
@@ -477,6 +506,9 @@
       }).finally(()=>{ btn.disabled = false; });
     });
   }
+
+  // Expose uploadBatch for page scripts to call (for fallback large uploads)
+  try{ window.LL_UPLOAD = { uploadBatch: uploadBatch }; }catch(e){ /* ignore non-browser env */ }
 
   document.addEventListener('DOMContentLoaded', ()=>{
     document.querySelectorAll('.ll-attachments').forEach(enhanceWrapper);
