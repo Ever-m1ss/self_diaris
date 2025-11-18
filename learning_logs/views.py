@@ -411,8 +411,20 @@ def new_entry(request, topic_id):
                             a.entry = new_entry
                             a.upload_session = None
                             a.save()
+                        try:
+                            import logging
+                            logging.getLogger('learning_logs.new_entry').debug('reassigned %s topic attachments to entry id=%s for session=%s', reassigned.count(), new_entry.id, session_key)
+                        except Exception:
+                            pass
                     except Exception:
                         # ignore reassignment errors by design (log if needed)
+                        pass
+                    # If there were no reassigned attachments, log a debug message so we can see whether session matched
+                    try:
+                        import logging
+                        if session_key and reassigned.count() == 0:
+                            logging.getLogger('learning_logs.new_entry').warning('No topic attachments found to reassign for session=%s topic=%s owner=%s', session_key, topic.id, request.user.id)
+                    except Exception:
                         pass
                 try:
                     url = reverse('learning_logs:topic_by_user', kwargs={'username': topic.owner.username, 'topic_name': topic.text})

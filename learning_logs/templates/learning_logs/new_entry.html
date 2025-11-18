@@ -37,11 +37,11 @@
               <div class="mt-2 d-flex gap-2 flex-wrap">
                   <label class="btn btn-outline-primary btn-sm mb-0">
                     选择文件
-                    <input class="d-none" type="file" name="attachments" multiple>
+                    <input class="d-none" type="file" name="attachments" multiple data-no-async>
                   </label>
                   <label class="btn btn-outline-primary btn-sm mb-0">
                     选择文件夹
-                    <input class="d-none" type="file" name="attachments" multiple webkitdirectory directory>
+                    <input class="d-none" type="file" name="attachments" multiple webkitdirectory directory data-no-async>
                   </label>
               </div>
                 <div class="form-text mt-1"></div>
@@ -88,7 +88,7 @@
         // On submit, collect relative paths and ensure upload_session is posted (same behavior as edit_entry)
         const formEl = document.querySelector('form');
         if(formEl){
-          formEl.addEventListener('submit', function(e){
+          formEl.addEventListener('submit', async function(e){
             Array.from(formEl.querySelectorAll('input[name^="relative_path["]')).forEach(n=>n.remove());
             Array.from(formEl.querySelectorAll('input[name="relative_paths_json"]')).forEach(n=>n.remove());
 
@@ -96,6 +96,34 @@
             let allFiles = [];
             fileInputs.forEach(function(inp){ if(inp.files && inp.files.length){ allFiles = allFiles.concat(Array.from(inp.files)); }});
             if(allFiles.length === 0) return;
+            // If files originate from staged input and exceed client-side threshold, auto-async upload them first
+            const AUTO_ASYNC_THRESHOLD_LOCAL = 50;
+            const noAsyncInputs = Array.from(formEl.querySelectorAll('input[type=file][name="attachments"][data-no-async]'));
+            let largeFilesToUpload = [];
+            noAsyncInputs.forEach(inp => { if(inp.files && inp.files.length > AUTO_ASYNC_THRESHOLD_LOCAL) largeFilesToUpload.push({input: inp, files: Array.from(inp.files)}); });
+            if(largeFilesToUpload.length){
+              e.preventDefault();
+              try{
+                // For each such input, call the global upload function
+                for (let rec of largeFilesToUpload){
+                  const wrapper = rec.input.closest('.ll-attachments');
+                  if (wrapper && window.LL_uploadBatch){
+                    await window.LL_uploadBatch(wrapper, rec.files);
+                    try{ rec.input.value = ''; }catch(e){/* noop */}
+                  }
+                }
+                // After async upload finished, append upload_session hidden input so backend can reassign
+                if(!formEl.querySelector('input[name="upload_session"]')){
+                  const sid = (formEl.querySelector('.ll-attachments')?.dataset?.uploadSession) || '';
+                  const upInp = document.createElement('input'); upInp.type='hidden'; upInp.name='upload_session'; upInp.value = sid; formEl.appendChild(upInp);
+                }
+                formEl.submit();
+              }catch(err){
+                alert('自动上传失败：' + err.message);
+                return false;
+              }
+              return;
+            }
               for (let f of allFiles){
                 if(/[\r\n\0]/.test(f.name)){
                   alert('文件名包含非法字符（换行或控制字符），请重命名后重试。');

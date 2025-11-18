@@ -85,8 +85,54 @@
 
   // Limit per-folder files (allowed max) and chunk size for each async request
   const MAX_FOLDER_UPLOAD_FILES = 5000;
-  const UPLOAD_CHUNK_SIZE = 200; // max files per request
-  const UPLOAD_CHUNK_MAX_BYTES = 5 * 1024 * 1024; // 5MB per request
+  const UPLOAD_CHUNK_SIZE = 50; // max files per request
+  const UPLOAD_CHUNK_MAX_BYTES = 2 * 1024 * 1024; // 2MB per request
+
+  // Send a single chunk (FormData) to server and handle response
+  async function sendChunk(wrapper, files){
+    const parentType = wrapper.dataset.parentType;
+    const parentId = wrapper.dataset.parentId;
+    const fd = new FormData();
+    const paths = [];
+    [...files].forEach((f,i)=>{
+      fd.append('files', f, f.name);
+      const rel = f.webkitRelativePath || f.relativePath || '';
+      const relClean = (rel || '').replace(/\\/g,'/').replace(/^\/+/, '');
+      const lastMod = typeof f.lastModified === 'number' ? f.lastModified : 0;
+      paths.push({name: f.name, size: f.size, lastModified: lastMod, path: relClean});
+      if(relClean) fd.append(`relative_path[${i}]`, relClean);
+    });
+    try{ fd.append('relative_paths_json', JSON.stringify(paths)); }catch(err){}
+    fd.append('parent_type', parentType);
+    fd.append('parent_id', parentId);
+    const uploadSession = wrapper.dataset.uploadSession;
+    if (uploadSession) fd.append('upload_session', uploadSession);
+    if(!csrftoken) throw new Error('CSRF token not found');
+    const MAX_RETRIES = 3;
+    let lastErr = null;
+    for (let attempt = 1; attempt <= MAX_RETRIES; attempt++){
+      try{
+        const resp = await fetch('/attachments/upload/', { method:'POST', credentials: 'same-origin', headers:{'X-CSRFToken': csrftoken,'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}, body: fd });
+        if(!resp.ok){ const t = await resp.text(); throw new Error(t || resp.status); }
+        const data = await resp.json();
+        if(!data.ok) throw new Error(data.error || 'upload failed');
+        return data;
+      }catch(err){
+        lastErr = err;
+        // If it's a server rejection error like HTTP 400 with message indicating too many files, don't retry
+        if (err && err.message && /Too many files|invalid parent_type|invalid parent_id|Failed to parse uploaded files|Request size may be too large|413/.test(err.message)){
+          throw err;
+        }
+        // Backoff
+        await new Promise(res => setTimeout(res, 500 * attempt));
+      }
+    }
+    throw lastErr || new Error('Unknown upload error');
+    if(!resp.ok){ const t = await resp.text(); throw new Error(t || resp.status); }
+    const data = await resp.json();
+    if(!data.ok) throw new Error(data.error || 'upload failed');
+    return data;
+  }
 
   async function uploadBatch(wrapper, files){
     // If wrapper contains an input marked data-no-async or wrapper itself is marked, treat files as staged
@@ -125,7 +171,17 @@
       }
       if (curChunk.length) chunks.push(curChunk);
       for (let chunk of chunks){
-        await uploadBatch(wrapper, chunk);
+        const data = await sendChunk(wrapper, chunk);
+        // Insert returned items to UI
+        const listContainer = wrapper.querySelector('.ll-attach-list') || wrapper;
+        data.files.forEach(f=>{
+          const canEdit = wrapper.dataset.canEdit && wrapper.dataset.canEdit !== '0' ? true : false;
+          const newItem = buildItem(f, {canEdit: canEdit});
+          let targetContainer = listContainer;
+          if (f.relative_path && f.relative_path.includes('/')) targetContainer = ensureFolderPath(listContainer, f.relative_path) || listContainer;
+          const inputContainer = (targetContainer === listContainer) ? listContainer.querySelector('.mt-2') : null;
+          if (inputContainer) targetContainer.insertBefore(newItem, inputContainer); else targetContainer.appendChild(newItem);
+        });
       }
       return;
     }
@@ -136,27 +192,8 @@
   // 优先使用统一的包裹容器（保证所有条目外框一致）
   const listContainer = wrapper.querySelector('.ll-attach-list') || wrapper;
 
-    const fd = new FormData();
-    const paths = [];
-    [...files].forEach((f,i)=>{
-      // Keep original file name; input validation prevents control chars.
-      fd.append('files', f, f.name);
-      const rel = f.webkitRelativePath || f.relativePath || '';
-      const relClean = (rel || '').replace(/\\/g,'/').replace(/^\/+/, '');
-      const lastMod = typeof f.lastModified === 'number' ? f.lastModified : 0;
-      paths.push({name: f.name, size: f.size, lastModified: lastMod, path: relClean});
-      if(relClean) fd.append(`relative_path[${i}]`, relClean);
-    });
-    // Add JSON field to reduce number of fields for large batches; backend accepts both.
-    try{
-      fd.append('relative_paths_json', JSON.stringify(paths));
-    }catch(err){/* ignore */}
-    fd.append('parent_type', parentType);
-    fd.append('parent_id', parentId);
-    const uploadSession = wrapper.dataset.uploadSession;
-    if (uploadSession) {
-      fd.append('upload_session', uploadSession);
-    }
+    // For single-chunk path, reuse sendChunk to centralize behavior
+    const data = await sendChunk(wrapper, files);
     try{
       console.debug('[attachments] uploadBatch sending', files.length, paths.map(p=>p.path));
       if(!csrftoken){
@@ -379,7 +416,7 @@
     const inputs = wrapper.querySelectorAll('input[type=file]');
     if(!inputs || !inputs.length) return;
     // Threshold above which we auto-async-upload even if input is marked data-no-async
-    const AUTO_ASYNC_THRESHOLD = 200; // files
+    const AUTO_ASYNC_THRESHOLD = 50; // files
     inputs.forEach((input)=>{
       if (input.hasAttribute && input.hasAttribute('data-no-async')){
         // For non-async inputs, add a preview renderer so users see staged files
@@ -613,4 +650,6 @@
       });
     });
   });
+  // Expose uploadBatch for other scripts (e.g., pre-submit auto-async on forms)
+  window.LL_uploadBatch = uploadBatch;
 })();
