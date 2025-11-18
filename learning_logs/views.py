@@ -1119,6 +1119,74 @@ def download_folder(request):
 
 
 @login_required
+@require_POST
+def list_folder_api(request):
+    """Return JSON listing of files and immediate subfolders under a given folder path
+    POST params: parent_type, parent_id, folder_path. Optionally upload_session to include session uploads.
+    """
+    parent_type = request.POST.get('parent_type')
+    parent_id = request.POST.get('parent_id')
+    folder_path = (request.POST.get('folder_path') or '').replace('\\', '/').strip('/')
+    if parent_type not in {'topic', 'entry', 'comment'}:
+        return JsonResponse({'ok': False, 'error': 'invalid parent_type'}, status=400)
+    try:
+        pid = int(parent_id)
+    except Exception:
+        return JsonResponse({'ok': False, 'error': 'invalid parent_id'}, status=400)
+
+    if parent_type == 'topic':
+        obj = get_object_or_404(Topic, id=pid)
+        if not (obj.owner == request.user or (obj.is_public and request.user.is_authenticated)):
+            raise Http404
+        base_qs = obj.attachment_set.all()
+    elif parent_type == 'entry':
+        obj = get_object_or_404(Entry, id=pid)
+        if obj.owner != request.user:
+            raise Http404
+        base_qs = obj.attachment_set.all()
+    else:
+        obj = get_object_or_404(Comment, id=pid)
+        if obj.entry.owner != request.user:
+            raise Http404
+        base_qs = obj.attachment_set.all()
+
+    # Optionally include attachments in a specific upload session
+    upload_session = request.POST.get('upload_session')
+    if upload_session:
+        # include both session and normal ones visible to owner
+        qs = base_qs.filter(Q(upload_session__isnull=True) | Q(upload_session=upload_session))
+    else:
+        qs = base_qs.filter(upload_session__isnull=True)
+
+    prefix = folder_path + '/' if folder_path else ''
+    targets = qs.filter(Q(relative_path=folder_path) | Q(relative_path__startswith=prefix))
+    files = []
+    folders = set()
+    for att in targets:
+        rel = (att.relative_path or att.original_name or '').lstrip('/')
+        if folder_path:
+            if not rel.startswith(folder_path + '/'):  # If equal to folder_path, treat as file?
+                if rel == folder_path:
+                    name = rel.split('/')[-1]
+                    files.append({'id': att.id, 'name': name, 'relative_path': rel, 'size': att.size, 'is_image': att.is_image, 'is_text': att.is_text_like, 'is_video': att.is_video, 'is_audio': att.is_audio})
+                continue
+            rest = rel[len(prefix):]
+        else:
+            rest = rel
+        parts = rest.split('/')
+        if len(parts) == 1:
+            # file in this folder
+            if parts[0]:
+                files.append({'id': att.id, 'name': parts[0], 'relative_path': rel, 'size': att.size, 'is_image': att.is_image, 'is_text': att.is_text_like, 'is_video': att.is_video, 'is_audio': att.is_audio})
+        else:
+            # subfolder
+            folders.add(parts[0])
+
+    folders_list = [{'name': f, 'path': (folder_path + '/' + f) if folder_path else f} for f in sorted(folders)]
+    return JsonResponse({'ok': True, 'files': files, 'folders': folders_list})
+
+
+@login_required
 def add_comment(request, entry_id):
     """添加评论：私密日记仅作者可评；公开日记任何登录用户可评。支持评论上传附件。"""
     entry = Entry.objects.get(id=entry_id)

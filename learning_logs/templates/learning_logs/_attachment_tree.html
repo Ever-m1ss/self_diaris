@@ -24,8 +24,8 @@
         <button type="button" class="btn btn-sm btn-outline-danger ms-2 ll-folder-del" data-folder-path="{{ base }}{{ name }}">删除</button>
       {% endif %}
     </div>
-    <div class="list-group list-group-flush ms-4 ll-folder-children d-none mb-2">
-      {% include 'learning_logs/_attachment_tree.html' with tree=subtree parent_owner=parent_owner base=base|add:name|add:'/' allow_modify=allow_modify allow_download=allow_download %}
+    <div class="list-group list-group-flush ms-4 ll-folder-children d-none mb-2" data-loaded="0" data-folder-path="{{ base }}{{ name }}">
+      <!-- Lazy-loaded children will be inserted here when user expands folder -->
     </div>
   {% endfor %}
 {% endif %}

@@ -88,7 +88,7 @@
   const UPLOAD_CHUNK_SIZE = 50; // max files per request
   const UPLOAD_CHUNK_MAX_BYTES = 2 * 1024 * 1024; // 2MB per request
 
-  // Send a single chunk (FormData) to server and handle response
+  // Send a single chunk (FormData) to server and handle response (supports progress via XHR)
   async function sendChunk(wrapper, files){
     const parentType = wrapper.dataset.parentType;
     const parentId = wrapper.dataset.parentId;
@@ -114,10 +114,33 @@
     let lastErr = null;
     for (let attempt = 1; attempt <= MAX_RETRIES; attempt++){
       try{
-        const resp = await fetch('/attachments/upload/', { method:'POST', credentials: 'same-origin', headers:{'X-CSRFToken': csrftoken,'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}, body: fd });
-        if(!resp.ok){ const t = await resp.text(); throw new Error(t || resp.status); }
-        const data = await resp.json();
-        if(!data.ok) throw new Error(data.error || 'upload failed');
+        // Use XHR for upload progress
+        const data = await new Promise((resolve, reject) => {
+          const xhr = new XMLHttpRequest();
+          xhr.open('POST', '/attachments/upload/', true);
+          xhr.withCredentials = true;
+          xhr.setRequestHeader('X-CSRFToken', csrftoken);
+          xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
+          xhr.upload.onprogress = function(e){
+            if (e.lengthComputable) {
+              const chunkProgress = e.loaded / e.total;
+              const chunkBytesUploaded = Math.floor(e.loaded);
+              document.dispatchEvent(new CustomEvent('ll:upload:chunkprogress', { detail: { wrapper: wrapper, chunkProgress: chunkProgress, chunkBytesUploaded: chunkBytesUploaded, momentum: e.loaded } }));
+            }
+          };
+          xhr.onreadystatechange = function(){
+            if (xhr.readyState === XMLHttpRequest.DONE) {
+              if (xhr.status >= 200 && xhr.status < 300) {
+                try{ const j = JSON.parse(xhr.responseText); resolve(j); } catch(e){ resolve({ ok: false, error: xhr.responseText }); }
+              } else {
+                reject(new Error(xhr.responseText || xhr.status));
+              }
+            }
+          };
+          xhr.onerror = function(){ reject(new Error('Network error')); };
+          xhr.send(fd);
+        });
+        if (!data.ok) throw new Error(data.error || 'upload failed');
         return data;
       }catch(err){
         lastErr = err;
@@ -163,6 +186,26 @@
     // Chunk by size or count to avoid network/proxy/Django limits
     var totalBytes = 0;
     for (let f of files) totalBytes += (f.size || 0);
+    // Initialize progress/disable UI
+    try{ wrapper._upload_total = totalBytes; wrapper._upload_uploaded = 0; }catch(e){}
+    if (!wrapper._upload_inflight) wrapper._upload_inflight = 0;
+    wrapper._upload_inflight++;
+    try{
+      const form = wrapper.closest('form');
+      if(form){ const btn = form.querySelector('button[type=submit], input[type=submit]'); if(btn) btn.disabled = true; }
+    }catch(e){}
+    document.dispatchEvent(new CustomEvent('ll:upload:start', {detail:{wrapper: wrapper, totalBytes: totalBytes}}));
+    function setWrapperProgress(wrapper, percent){
+      try{
+        const pb = wrapper.querySelector('.ll-upload-progress');
+        if(!pb) return;
+        const bar = pb.querySelector('.progress-bar');
+        if(!bar) return;
+        if (isNaN(percent) || percent <= 0) { pb.classList.add('d-none'); pb.setAttribute('aria-hidden','true'); bar.style.width = '0%'; }
+        else { pb.classList.remove('d-none'); pb.setAttribute('aria-hidden','false'); bar.style.width = Math.min(100, Math.round(percent)) + '%'; }
+      }catch(e){}
+    }
+    function finishOneUpload(wrapper){ try{ wrapper._upload_inflight--; }catch(e){} if(!wrapper._upload_inflight || wrapper._upload_inflight <= 0){ try{ setWrapperProgress(wrapper, 100); }catch(e){} try{ setTimeout(()=>{ setWrapperProgress(wrapper, 0); }, 800); }catch(e){} const form = wrapper.closest('form'); if(form){ const btn = form.querySelector('button[type=submit], input[type=submit]'); if(btn) btn.disabled = false; } document.dispatchEvent(new CustomEvent('ll:upload:done', { detail: { wrapper: wrapper } })); }}
     if (totalBytes > UPLOAD_CHUNK_MAX_BYTES || files.length > UPLOAD_CHUNK_SIZE){
       console.debug(`[attachments] Uploading ${files.length} files in chunks (total ${totalBytes} bytes, chunk max ${UPLOAD_CHUNK_MAX_BYTES} bytes / ${UPLOAD_CHUNK_SIZE} files)`);
       const chunks = [];
@@ -179,9 +222,23 @@
         curBytes += fsize;
       }
       if (curChunk.length) chunks.push(curChunk);
+      try{
       for (let chunk of chunks){
+        // Compute chunk bytes
+        const chunkTotal = chunk.reduce((s,f)=>s + (f.size || 0), 0);
+        let handler = function(ev){};
+        handler = function(ev){ if (ev.detail && ev.detail.wrapper === wrapper){
+            const uploadedSoFar = wrapper._upload_uploaded || 0;
+            const curChunkUploaded = (ev.detail.chunkProgress || 0) * chunkTotal;
+            const percent = (uploadedSoFar + curChunkUploaded) / (totalBytes || 1) * 100;
+            setWrapperProgress(wrapper, percent);
+          }};
+        document.addEventListener('ll:upload:chunkprogress', handler);
         // sendChunk now ensures relative_path JSON includes path fallback to file name
         const data = await sendChunk(wrapper, chunk);
+        document.removeEventListener('ll:upload:chunkprogress', handler);
+        wrapper._upload_uploaded = (wrapper._upload_uploaded || 0) + chunkTotal;
+        setWrapperProgress(wrapper, (wrapper._upload_uploaded || 0) / (totalBytes || 1) * 100);
         // Insert returned items to UI
         const listContainer = wrapper.querySelector('.ll-attach-list') || wrapper;
         data.files.forEach(f=>{
@@ -193,6 +250,13 @@
           if (inputContainer) targetContainer.insertBefore(newItem, inputContainer); else targetContainer.appendChild(newItem);
         });
       }
+      }catch(err){
+        console.error('Upload chunked error', err);
+        alert('上传失败: ' + (err.message || err));
+        finishOneUpload(wrapper);
+        return;
+      }
+      finishOneUpload(wrapper);
       return;
     }
     
@@ -217,10 +281,12 @@
         const inputContainer = (targetContainer === listContainer) ? listContainer.querySelector('.mt-2') : null;
         if (inputContainer) targetContainer.insertBefore(newItem, inputContainer); else targetContainer.appendChild(newItem);
       });
+      finishOneUpload(wrapper);
       return;
     } catch (err) {
       console.error('Upload error', err);
       alert('上传失败: ' + (err.message || err));
+      finishOneUpload(wrapper);
       return;
     }
   }
@@ -354,6 +420,8 @@
     }
     const children=document.createElement('div');
     children.className='list-group list-group-flush ms-4 ll-folder-children d-none mb-2';
+    children.dataset.loaded = '0';
+    children.dataset.folderPath = '';
     return {row,children};
   }
   // 确保路径上所有文件夹节点存在，返回最终子容器（用于放文件）
@@ -385,6 +453,7 @@
         }
         accumulated = accumulated ? (accumulated + '/' + name) : name;
         created.row.dataset.folderPath = accumulated;
+        created.children.dataset.folderPath = accumulated;
         const delBtn = created.row.querySelector('.ll-folder-del');
         if(delBtn){ delBtn.dataset.folderPath = accumulated; }
         // 保持新建文件夹默认折叠，不展开
@@ -392,6 +461,7 @@
       }else{
         accumulated = accumulated ? (accumulated + '/' + name) : name;
         foundRow.dataset.folderPath = accumulated;
+        if (foundChildren) foundChildren.dataset.folderPath = accumulated;
         const delBtn = foundRow.querySelector('.ll-folder-del');
         if(delBtn){ delBtn.dataset.folderPath = accumulated; }
         // 已存在也保持当前折叠状态
@@ -574,6 +644,53 @@
       const caret = row.querySelector('.ll-caret-icon');
       const collapsed = row.classList.contains('collapsed');
       if (collapsed) {
+        // If this folder's children haven't been loaded yet, fetch them lazily
+        const loaded = children.dataset.loaded === '1';
+        if (!loaded) {
+          // fetch content via API
+          const wrapper = row.closest('.ll-attachments');
+          if (wrapper) {
+            const parentType = wrapper.dataset.parentType;
+            const parentId = wrapper.dataset.parentId;
+            const folderPath = row.dataset.folderPath || row.dataset.folderName || '';
+            // assemble form data
+            const fd = new FormData();
+            fd.append('parent_type', parentType);
+            fd.append('parent_id', parentId);
+            fd.append('folder_path', folderPath);
+            const upload_session = wrapper.dataset.uploadSession;
+            if (upload_session) fd.append('upload_session', upload_session);
+            fetch('/attachments/list_folder/', {
+              method: 'POST',
+              credentials: 'same-origin',
+              headers: {'X-CSRFToken': csrftoken,'X-Requested-With':'XMLHttpRequest','Accept':'application/json'},
+              body: fd
+            }).then(async r => {
+              const raw = await r.text();
+              let res = null; try{ res = JSON.parse(raw); } catch(e){ res = { ok: false, error: raw }; }
+              if (!res.ok) { console.warn('Failed to load folder content', res.error || raw); return; }
+              // Insert folders
+              if (res.folders && res.folders.length) {
+                res.folders.forEach(f => {
+                  const created = createFolderRow(f.name, wrapper.dataset.canEdit && wrapper.dataset.canEdit !== '0');
+                  created.row.dataset.folderPath = f.path;
+                  created.row.dataset.folderName = f.name;
+                  // TBD: folder meta or download/delete buttons handled by ensureFolderPath
+                  children.appendChild(created.row);
+                  children.appendChild(created.children);
+                });
+              }
+              // Insert files
+              if (res.files && res.files.length) {
+                res.files.forEach(a => {
+                  const fileItem = buildItem(a, { canEdit: wrapper.dataset.canEdit && wrapper.dataset.canEdit !== '0' });
+                  children.appendChild(fileItem);
+                });
+              }
+              children.dataset.loaded = '1';
+            }).catch(err => { console.warn('list_folder failed', err); });
+          }
+        }
         row.classList.remove('collapsed');
         children.classList.remove('d-none');
         if (caret && window.LL_ICON_URLS && window.LL_ICON_URLS.caret_down) {

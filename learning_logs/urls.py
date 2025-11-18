@@ -44,4 +44,5 @@ urlpatterns = [
     path('attachments/delete/<int:attachment_id>/', views.delete_attachment, name='delete_attachment'),
     path('attachments/upload/', views.upload_attachments_api, name='upload_attachments_api'),
     path('attachments/delete_folder/', views.delete_folder_api, name='delete_folder_api'),
+    path('attachments/list_folder/', views.list_folder_api, name='list_folder_api'),
 ]

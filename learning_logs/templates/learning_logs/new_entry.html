@@ -45,6 +45,9 @@
                   </label>
               </div>
                 <div class="form-text mt-1"></div>
+                <div class="progress mt-2 d-none ll-upload-progress" aria-hidden="true">
+                  <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                </div>
             </div>
           </div>
         </div>
@@ -72,9 +75,12 @@
           return hasFiles || hasUploadSession || hiddenSession;
         }
 
+        const wrapperEl = document.querySelector('.ll-attachments[data-parent-type="topic"]');
         function update(){
           const hasText = (ta.value || '').trim().length > 0;
           const hasTitle = title && (title.value || '').trim().length > 0;
+          // If uploads are in progress, keep disabled
+          if (wrapperEl && wrapperEl._upload_inflight && wrapperEl._upload_inflight > 0) { btn.disabled = true; return; }
           btn.disabled = !(hasText || hasTitle || hasFilesInForm());
         }
         ta.addEventListener('input', update);
@@ -91,6 +97,8 @@
           }
           // Listen for async upload code setting dataset.uploadSession and notify to update submit button
           document.addEventListener('ll:upload_session:set', function(ev){ try{ update(); }catch(e){} });
+          document.addEventListener('ll:upload:start', function(ev){ try{ if (ev.detail && ev.detail.wrapper === wrapperEl){ update(); } }catch(e){} });
+          document.addEventListener('ll:upload:done', function(ev){ try{ if (ev.detail && ev.detail.wrapper === wrapperEl){ update(); } }catch(e){} });
         }catch(e){console.warn('upload_session init failed', e);} 
 
         // On submit, collect relative paths and ensure upload_session is posted (same behavior as edit_entry)

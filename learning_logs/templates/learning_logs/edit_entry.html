@@ -39,14 +39,17 @@
                 <div class="mt-2 d-flex gap-2 flex-wrap">
                   <label class="btn btn-outline-primary btn-sm mb-0">
                     选择文件
-                    <input class="d-none" type="file" name="attachments" multiple>
+                    <input class="d-none" type="file" name="attachments" multiple data-no-async>
                   </label>
                   <label class="btn btn-outline-primary btn-sm mb-0">
                     选择文件夹
-                    <input class="d-none" type="file" name="attachments" multiple webkitdirectory directory>
+                    <input class="d-none" type="file" name="attachments" multiple webkitdirectory directory data-no-async>
                   </label>
                 </div>
                 <div class="form-text mt-1"></div>
+                <div class="progress mt-2 d-none ll-upload-progress" aria-hidden="true">
+                  <div class="progress-bar" role="progressbar" style="width: 0%"></div>
+                </div>
               </div>
             {% endif %}
           </div>
@@ -60,6 +63,11 @@
         (function(){
           const formEl = document.querySelector('form');
           if(!formEl) return;
+          const wrapperEl = formEl.querySelector('.ll-attachments');
+          const saveBtn = formEl.querySelector('button[type="submit"], input[type="submit"]');
+          function update(){ if (wrapperEl && wrapperEl._upload_inflight && wrapperEl._upload_inflight > 0){ if(saveBtn) saveBtn.disabled = true; } else { if(saveBtn) saveBtn.disabled = false; } }
+          document.addEventListener('ll:upload:start', function(ev){ try{ if (ev.detail && ev.detail.wrapper === wrapperEl) update(); } catch(e){} });
+          document.addEventListener('ll:upload:done', function(ev){ try{ if (ev.detail && ev.detail.wrapper === wrapperEl) update(); } catch(e){} });
 
           // On submit, build relative_path[] inputs for folder-structured uploads and show confirm.
           formEl.addEventListener('submit', function(e){
@@ -93,6 +101,12 @@
                 return {name: f.name, size: f.size, lastModified: lastm, path: relClean};
               });
             const jsonInp = document.createElement('input'); jsonInp.type='hidden'; jsonInp.name='relative_paths_json'; jsonInp.value=JSON.stringify(paths); formEl.appendChild(jsonInp);
+            // Append upload_session if async stage was used for topic->entry reassign
+            const wrapper = formEl.querySelector('.ll-attachments');
+            const sid = wrapper?.dataset?.uploadSession || '';
+            if (sid && !formEl.querySelector('input[name="upload_session"]')){
+              const upInp = document.createElement('input'); upInp.type='hidden'; upInp.name='upload_session'; upInp.value = sid; formEl.appendChild(upInp);
+            }
             // Also add per-file relative_path[index] hidden inputs as fallback
               paths.forEach(function(p, idx){ const h = document.createElement('input'); h.type='hidden'; h.name=`relative_path[${idx}]`; h.value=p.path; formEl.appendChild(h); });
           });

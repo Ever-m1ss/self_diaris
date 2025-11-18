@@ -44,6 +44,19 @@ class AttachmentUploadTests(TestCase):
         att.refresh_from_db()
         self.assertIsNotNone(att.entry)
         self.assertEqual(att.relative_path, rel_path)
+
+    def test_new_entry_form_uploads_with_relative_path(self):
+        from .models import Attachment
+        content = b'hello2'
+        f = SimpleUploadedFile('hello2.txt', content)
+        rel_path = 'newfolder/sub/hello2.txt'
+        rp_json = json.dumps([{"name": 'hello2.txt', "size": len(content), "path": rel_path}])
+        resp = self.client.post(reverse('learning_logs:new_entry', kwargs={'topic_id': self.topic.id}), {'title': 't', 'text': 'some', 'relative_paths_json': rp_json}, files={'attachments': f})
+        self.assertIn(resp.status_code, (302, 301))
+        # Verify attachment exists and holds relative path
+        att = Attachment.objects.filter(topic=self.topic).order_by('-id').first()
+        self.assertIsNotNone(att)
+        self.assertEqual(att.relative_path, rel_path)
 from django.test import TestCase
 from django.urls import reverse
 from django.contrib.auth import get_user_model
