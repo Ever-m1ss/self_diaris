@@ -111,6 +111,8 @@ class Attachment(models.Model):
     size = models.BigIntegerField(default=0)
     is_public = models.BooleanField(default=False)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    # 临时上传 session key：用于 new_entry 情况下在创建 entry 后将 topic-level临时附件附加到该 entry
+    upload_session = models.CharField(max_length=64, blank=True, null=True, db_index=True)
 
     class Meta:
         ordering = ["-uploaded_at"]

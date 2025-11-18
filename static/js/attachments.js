@@ -108,7 +108,15 @@
     }catch(err){/* ignore */}
     fd.append('parent_type', parentType);
     fd.append('parent_id', parentId);
+    const uploadSession = wrapper.dataset.uploadSession;
+    if (uploadSession) {
+      fd.append('upload_session', uploadSession);
+    }
     try{
+      if(!csrftoken){
+        alert('会话或 CSRF token 未找到，请先登录或刷新页面后重试。');
+        return;
+      }
       const resp = await fetch('/attachments/upload/', {
         method:'POST',
         credentials: 'same-origin',
@@ -116,8 +124,8 @@
         body: fd
       });
       if(!resp.ok){
-        const t = await resp.text();
-        throw new Error(t || resp.status);
+          const t = await resp.text();
+          throw new Error(t || resp.status);
       }
       const data = await resp.json();
       if(!data.ok) throw new Error('上传失败');
@@ -177,7 +185,8 @@
             const dt = new DataTransfer();
             const curFiles = Array.from(input.files || []);
             for (let fi of curFiles){
-              if (fi.name === f.name && (fi.size === f.size) && (fi.lastModified === f.lastModified)){
+              // Compare by filename + size; lastModified not available reliably on all browsers
+              if (fi.name === f.name && (fi.size === f.size)){
                 // skip this one (remove)
                 continue;
               }
@@ -215,7 +224,10 @@
         headers: {'X-CSRFToken': csrftoken,'X-Requested-With':'XMLHttpRequest','Accept':'application/json'}
       });
       if(!resp.ok){
-        throw new Error(await resp.text() || resp.status);
+          const raw = await resp.text();
+          let errMsg = raw;
+          try{ const parsed = JSON.parse(raw); errMsg = parsed.error || parsed.message || raw; }catch(e){}
+          throw new Error(errMsg || resp.status);
       }
       const item = btn.closest('.ll-attachment-item');
       if(item) item.remove();
@@ -400,7 +412,10 @@
           credentials: 'same-origin',
           headers:{'X-CSRFToken': csrftoken,'X-Requested-With':'XMLHttpRequest','Accept':'application/json'},
           body: fd
-        }).then(r=>r.json()).then(res=>{
+        }).then(async (r)=>{
+          const text = await r.text();
+          let res;
+          try{ res = JSON.parse(text); } catch(e) { res = { ok: false, error: text }; }
           if(!res.ok){ alert('删除失败: '+(res.error||'未知错误')); return; }
           // 移除该文件夹行与其子内容容器
           const row = folderDel.closest('.ll-folder-row');

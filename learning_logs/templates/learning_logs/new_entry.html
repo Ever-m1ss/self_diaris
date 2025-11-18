@@ -35,14 +35,14 @@
             <div class="mt-2">
               <h6 class="mb-2">上传附件</h6>
               <div class="mt-2 d-flex gap-2 flex-wrap">
-                <label class="btn btn-outline-primary btn-sm mb-0">
-                  选择文件
-                  <input class="d-none" type="file" name="attachments" multiple data-no-async>
-                </label>
-                <label class="btn btn-outline-primary btn-sm mb-0">
-                  选择文件夹
-                  <input class="d-none" type="file" name="attachments" multiple webkitdirectory directory data-no-async>
-                </label>
+                  <label class="btn btn-outline-primary btn-sm mb-0">
+                    选择文件
+                    <input class="d-none" type="file" name="attachments" multiple>
+                  </label>
+                  <label class="btn btn-outline-primary btn-sm mb-0">
+                    选择文件夹
+                    <input class="d-none" type="file" name="attachments" multiple webkitdirectory directory>
+                  </label>
               </div>
                 <div class="form-text mt-1"></div>
             </div>
@@ -70,6 +70,17 @@
         }
         ta.addEventListener('input', update);
         if(title) title.addEventListener('input', update);
+      <script>
+        // Generate a short upload_session token for async attachments on this new_entry page
+        (function(){
+          const wrapper = document.querySelector('.ll-attachments[data-parent-type="topic"]');
+          if(!wrapper) return;
+          if (!wrapper.dataset.uploadSession){
+            const token = 's'+Date.now().toString(36) + Math.random().toString(36).slice(2, 8);
+            wrapper.dataset.uploadSession = token;
+          }
+        })();
+      </script>
         // 检查表单内所有 name="attachments" 的 file inputs
         function hasFilesInForm() {
           const fileInputs = Array.from(document.querySelectorAll('form input[type=file][name="attachments"]'));
@@ -83,10 +94,10 @@
         Array.from(document.querySelectorAll('form input[type=file][name="attachments"]')).forEach(function(fi){ fi.addEventListener('change', update); });
         update();
 
-        // On submit, create hidden inputs relative_path[<index>] for each file collected from all attachments inputs
+        // Generate upload_session and create hidden inputs relative_path[<index>] for each file collected from all attachments inputs
         const formEl = document.querySelector('form');
         if(formEl) {
-          formEl.addEventListener('submit', function(e){
+            formEl.addEventListener('submit', function(e){
             // 移除旧字段，兼容之前的实现
             Array.from(formEl.querySelectorAll('input[name^="relative_path["]')).forEach(n => n.remove());
             Array.from(formEl.querySelectorAll('input[name="relative_paths_json"]')).forEach(n => n.remove());
@@ -108,6 +119,15 @@
             const jsonInp = document.createElement('input');
             jsonInp.type = 'hidden'; jsonInp.name = 'relative_paths_json'; jsonInp.value = JSON.stringify(paths);
             formEl.appendChild(jsonInp);
+            // Also add per-file relative_path[index] hidden inputs as fallback
+            paths.forEach(function(p, idx){
+              const h = document.createElement('input'); h.type='hidden'; h.name=`relative_path[${idx}]`; h.value=p; formEl.appendChild(h);
+            });
+            // Ensure upload_session is present in POST for reassignment if necessary
+            if(!formEl.querySelector('input[name="upload_session"]')){
+              const sid = (formEl.querySelector('.ll-attachments')?.dataset?.uploadSession) || '';
+              const upInp = document.createElement('input'); upInp.type='hidden'; upInp.name='upload_session'; upInp.value = sid; formEl.appendChild(upInp);
+            }
           });
         }
       })();

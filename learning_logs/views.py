@@ -321,7 +321,14 @@ def new_entry(request, topic_id):
         # POST data submitted; process data.
         form = EntryForm(data=request.POST)
         # 尝试从多种可能的字段名读取上传的文件（兼容不同前端实现）
-        files = request.FILES.getlist('attachments') or request.FILES.getlist('attachments[]') or request.FILES.getlist('files') or request.FILES.getlist('files[]')
+        try:
+            files = request.FILES.getlist('attachments') or request.FILES.getlist('attachments[]') or request.FILES.getlist('files') or request.FILES.getlist('files[]')
+        except Exception as e:
+            import logging
+            log = logging.getLogger('learning_logs.new_entry')
+            log.exception('Failed to parse uploaded files in new_entry: %s', e)
+            form.add_error(None, '上传的表单内容无法解析（可能文件过大或请求异常）。')
+            files = []
         # 支持文件夹上传：前端通过 single JSON hidden input `relative_paths_json` 或多个 hidden inputs `relative_path[...]`
         rel_paths = {}
         rp_json = request.POST.get('relative_paths_json')
@@ -355,7 +362,7 @@ def new_entry(request, topic_id):
         try:
             import logging
             log = logging.getLogger('learning_logs.new_entry')
-            log.debug('new_entry files=%s rel_paths_keys=%s', len(files) if files is not None else 0, list(rel_paths.keys()))
+            log.debug('new_entry files=%s names=%s rel_paths=%s', len(files) if files is not None else 0, [getattr(f, 'name', None) for f in files], rel_paths)
         except Exception:
             pass
         if form.is_valid():
@@ -370,6 +377,19 @@ def new_entry(request, topic_id):
                 new_entry.save()
                 # 附件（可选，批量）
                 _save_attachments_from_request(files, request.user, entry=new_entry, relative_paths=rel_paths)
+                # If the client used async upload to the topic before creating the entry,
+                # reassign any topic-level attachments for this upload_session to this new entry.
+                session_key = request.POST.get('upload_session')
+                if session_key:
+                    try:
+                        reassigned = Attachment.objects.filter(topic=topic, owner=request.user, entry__isnull=True, upload_session=session_key)
+                        for a in reassigned:
+                            a.entry = new_entry
+                            a.upload_session = None
+                            a.save()
+                    except Exception:
+                        # ignore reassignment errors by design (log if needed)
+                        pass
                 try:
                     url = reverse('learning_logs:topic_by_user', kwargs={'username': topic.owner.username, 'topic_name': topic.text})
                     return redirect(url)
@@ -414,7 +434,13 @@ def edit_entry(request, entry_id):
                 # 若时区模块不可用或保存失败，忽略但不要阻止后续操作
                 pass
             # 可在编辑时追加附件（含文件夹）
-            files = request.FILES.getlist('attachments') or request.FILES.getlist('attachments[]') or request.FILES.getlist('files') or request.FILES.getlist('files[]')
+            try:
+                files = request.FILES.getlist('attachments') or request.FILES.getlist('attachments[]') or request.FILES.getlist('files') or request.FILES.getlist('files[]')
+            except Exception as e:
+                import logging
+                log = logging.getLogger('learning_logs.edit_entry')
+                log.exception('Failed to parse uploaded files in edit_entry: %s', e)
+                files = []
             rel_paths = {}
             rp_json = request.POST.get('relative_paths_json')
             if rp_json:
@@ -445,7 +471,7 @@ def edit_entry(request, entry_id):
             try:
                 import logging
                 log = logging.getLogger('learning_logs.edit_entry')
-                log.debug('edit_entry files=%s rel_paths_keys=%s', len(files) if files is not None else 0, list(rel_paths.keys()))
+                log.debug('edit_entry files=%s names=%s rel_paths=%s', len(files) if files is not None else 0, [getattr(f, 'name', None) for f in files], rel_paths)
             except Exception:
                 pass
             _save_attachments_from_request(files, request.user, entry=entry, relative_paths=rel_paths)
@@ -492,15 +518,19 @@ def delete_entry(request, entry_id):
     })
 
 
-def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comment=None, relative_paths=None):
+def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comment=None, relative_paths=None, upload_session=None):
     if not files:
         return []
     created = []
     rel_map = {}
     if relative_paths:
-        # relative_paths 与 files 顺序对齐
+        # relative_paths may be a mapping of numeric indices to paths or be a dict/list parsed from JSON
         for idx, rp in relative_paths.items():
-            rel_map[int(idx)] = rp
+            try:
+                rel_map[int(idx)] = rp
+            except Exception:
+                # keep non-numeric mapping as-is; we'll also build name-based fallback later
+                rel_map[str(idx)] = rp
 
     def _sanitize_rel_path(p: str) -> str:
         """清洗相对路径，确保：
@@ -537,11 +567,34 @@ def _save_attachments_from_request(files, owner, *, topic=None, entry=None, comm
             derived_public = True
         att = Attachment(owner=owner, topic=topic, entry=entry, comment=comment, file=f, is_public=derived_public)
         att.original_name = f.name
+        # Attempt to find a relative path for this file in several ways
+        rp_raw = None
         if rel_map.get(idx):
-            _rp = _sanitize_rel_path(rel_map[idx])
+            rp_raw = rel_map[idx]
+        else:
+            # Fallback: try to match by basename within provided relative_paths values
+            # Build once per function call
+            if rel_map:
+                # rel_map may have numeric keys or not; check values
+                for v in rel_map.values():
+                    if not isinstance(v, str):
+                        continue
+                    if v.endswith('/' + f.name) or v.endswith('\\' + f.name) or v == f.name:
+                        rp_raw = v
+                        break
+        if rp_raw:
+            _rp = _sanitize_rel_path(rp_raw)
             if _rp:
                 att.relative_path = _rp
+        if upload_session:
+            att.upload_session = upload_session
         att.save()
+        try:
+            import logging
+            log = logging.getLogger('learning_logs.save_attach')
+            log.debug('Saved attachment id=%s name=%s rel=%s owner=%s topic=%s entry=%s comment=%s', att.id, att.original_name, att.relative_path, getattr(owner, 'id', None), getattr(att.topic, 'id', None), getattr(att.entry, 'id', None), getattr(att.comment, 'id', None))
+        except Exception:
+            pass
         created.append(att)
     return created
 
@@ -663,7 +716,13 @@ def upload_attachments_api(request):
         if parent_obj.user != request.user:
             raise Http404
 
-    files = request.FILES.getlist('files')
+    try:
+        files = request.FILES.getlist('files')
+    except Exception as e:
+        import logging
+        log = logging.getLogger('learning_logs.upload')
+        log.exception('Failed to parse uploaded files: %s', e)
+        return JsonResponse({'ok': False, 'error': 'Failed to parse uploaded files. Request size may be too large or form is invalid.'}, status=400)
     rel_paths = {}
     rp_json = request.POST.get('relative_paths_json')
     if rp_json:
@@ -679,7 +738,20 @@ def upload_attachments_api(request):
             rel_paths = {}
     else:
         rel_paths = {k.split('relative_path[')[1].split(']')[0]: v for k, v in request.POST.items() if k.startswith('relative_path[')}
-    created = _save_attachments_from_request(files, request.user, **kw, relative_paths=rel_paths)
+    try:
+        try:
+            import logging
+            upload_log = logging.getLogger('learning_logs.upload')
+            upload_log.debug('upload_attachments_api files=%s names=%s rel_paths=%s', len(files), [getattr(f, 'name', None) for f in files], rel_paths)
+        except Exception:
+            pass
+        upload_session = request.POST.get('upload_session')
+        created = _save_attachments_from_request(files, request.user, **kw, relative_paths=rel_paths, upload_session=upload_session)
+    except Exception as e:
+        import logging
+        log = logging.getLogger('learning_logs.upload')
+        log.exception('Error saving attachments: %s', e)
+        return JsonResponse({'ok': False, 'error': 'Server error when saving attachments.'}, status=500)
     data = []
     for a in created:
         data.append({
